@@ -6,25 +6,23 @@ open WhisperFS
 open FsUnit.Xunit
 
 /// Test configuration builder
-type TestConfigBuilder() =
+type TestConfigBuilder() as this =
     let mutable config = {
         ModelPath = ""
         ModelType = ModelType.Base
         Language = None
+        Strategy = SamplingStrategy.Greedy
         ThreadCount = 4
-        UseGpu = false
-        EnableTranslate = false
-        MaxSegmentLength = 30
-        Temperature = 0.0f
-        TemperatureInc = 0.2f
-        BeamSize = 5
-        BestOf = 5
-        MaxTokensPerSegment = 0
-        AudioContext = 0
+        MaxTextContext = 16384
+        OffsetMs = 0
+        DurationMs = 0
+        Translate = false
         NoContext = false
+        NoTimestamps = false
         SingleSegment = false
-        PrintSpecialTokens = false
+        PrintSpecial = false
         PrintProgress = false
+        PrintRealtime = false
         PrintTimestamps = false
         TokenTimestamps = false
         ThresholdPt = 0.01f
@@ -32,20 +30,19 @@ type TestConfigBuilder() =
         MaxLen = 0
         SplitOnWord = false
         MaxTokens = 0
-        SpeedUp = false
         DebugMode = false
-        AudioCtx = 0
+        AudioContext = 0
         InitialPrompt = None
+        DetectLanguage = false
         SuppressBlank = true
-        SuppressNonSpeechTokens = true
+        SuppressNonSpeech = true
+        Temperature = 0.0f
         MaxInitialTs = 1.0f
         LengthPenalty = -1.0f
-        StreamingMode = false
-        ChunkSizeMs = 1000
-        OverlapMs = 200
-        MinConfidence = 0.5f
-        MaxContext = 512
-        StabilityThreshold = 0.7f
+        TemperatureInc = 0.2f
+        EntropyThreshold = 2.4f
+        LogProbThreshold = -1.0f
+        NoSpeechThreshold = 0.6f
     }
 
     member _.WithDefaults() = config
@@ -54,12 +51,12 @@ type TestConfigBuilder() =
         config <- { config with ModelType = modelType }
         this
 
-    member _.WithStreaming(enabled: bool) =
-        config <- { config with StreamingMode = enabled }
-        this
-
     member _.WithLanguage(lang: string option) =
         config <- { config with Language = lang }
+        this
+
+    member _.WithTranslate(enabled: bool) =
+        config <- { config with Translate = enabled }
         this
 
     member _.Build() = config
@@ -242,6 +239,26 @@ module PerformanceHelpers =
             failwithf "Operation took %.2f ms, expected less than %.2f ms"
                 elapsed.TotalMilliseconds maxMs
         result
+
+/// Result helper utilities
+module ResultHelpers =
+    /// Get the Ok value or fail the test
+    let getOkOrFail result =
+        match result with
+        | Ok value -> value
+        | Error err -> failwithf "Expected Ok but got Error: %A" err
+
+    /// Assert that a result is Ok
+    let shouldBeOk result =
+        match result with
+        | Ok _ -> ()
+        | Error err -> failwithf "Expected Ok but got Error: %A" err
+
+    /// Assert that a result is Error
+    let shouldBeError result =
+        match result with
+        | Ok value -> failwithf "Expected Error but got Ok: %A" value
+        | Error _ -> ()
 
 /// Test data providers
 module TestData =

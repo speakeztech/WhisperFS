@@ -116,23 +116,17 @@ module ErrorHandling =
             if config.ThreadCount <= 0 then
                 yield ConfigurationError "Thread count must be positive"
 
-            if config.ChunkSizeMs <= 0 then
-                yield ConfigurationError "Chunk size must be positive"
+            if config.MaxTextContext <= 0 then
+                yield ConfigurationError "Max text context must be positive"
 
-            if config.OverlapMs < 0 then
-                yield ConfigurationError "Overlap cannot be negative"
-
-            if config.OverlapMs >= config.ChunkSizeMs then
-                yield ConfigurationError "Overlap must be less than chunk size"
-
-            if config.MinConfidence < 0.0f || config.MinConfidence > 1.0f then
-                yield ConfigurationError "Min confidence must be between 0 and 1"
+            if config.ThresholdPt < 0.0f || config.ThresholdPt > 1.0f then
+                yield ConfigurationError "Threshold must be between 0 and 1"
 
             if config.Temperature < 0.0f then
                 yield ConfigurationError "Temperature must be non-negative"
 
-            if config.MaxContext <= 0 then
-                yield ConfigurationError "Max context must be positive"
+            if config.AudioContext < 0 then
+                yield ConfigurationError "Audio context cannot be negative"
         ]
         |> function
             | [] -> Ok config

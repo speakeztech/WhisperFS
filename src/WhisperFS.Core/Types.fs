@@ -115,46 +115,50 @@ type WhisperConfig = {
     ModelPath: string
     ModelType: ModelType
     Language: string option  // None for auto-detect
-    ThreadCount: int
-    UseGpu: bool
-    EnableTranslate: bool
-    MaxSegmentLength: int
 
-    // Advanced options from whisper.cpp
-    Temperature: float32
-    TemperatureInc: float32
-    EntropyThreshold: float32
-    LogProbThreshold: float32
-    NoSpeechThreshold: float32
-    SamplingStrategy: SamplingStrategy
-    MaxTokensPerSegment: int
-    AudioContext: int
-    NoContext: bool
-    SingleSegment: bool
-    PrintSpecialTokens: bool
-    PrintProgress: bool
-    PrintTimestamps: bool
-    TokenTimestamps: bool
-    ThresholdPt: float32
-    ThresholdPtSum: float32
-    MaxLen: int
-    SplitOnWord: bool
-    MaxTokens: int
-    SpeedUp: bool
-    DebugMode: bool
-    InitialPrompt: string option
-    SuppressBlank: bool
-    SuppressNonSpeechTokens: bool
-    MaxInitialTs: float32
-    LengthPenalty: float32
+    // whisper.cpp parameters (matching whisper_full_params)
+    Strategy: SamplingStrategy  // sampling strategy
+    ThreadCount: int            // n_threads
+    MaxTextContext: int         // n_max_text_ctx
+    OffsetMs: int              // offset_ms
+    DurationMs: int            // duration_ms
+    Translate: bool            // translate
+    NoContext: bool            // no_context
+    NoTimestamps: bool         // no_timestamps
+    SingleSegment: bool        // single_segment
+    PrintSpecial: bool         // print_special
+    PrintProgress: bool        // print_progress
+    PrintRealtime: bool        // print_realtime
+    PrintTimestamps: bool      // print_timestamps
 
-    // Streaming-specific options
-    StreamingMode: bool
-    ChunkSizeMs: int
-    OverlapMs: int
-    MinConfidence: float32
-    MaxContext: int
-    StabilityThreshold: float32
+    // Token-level timestamps
+    TokenTimestamps: bool      // token_timestamps
+    ThresholdPt: float32       // thold_pt
+    ThresholdPtSum: float32    // thold_ptsum
+    MaxLen: int                // max_len
+    SplitOnWord: bool          // split_on_word
+    MaxTokens: int             // max_tokens
+
+    // Audio and debugging
+    DebugMode: bool            // debug_mode
+    AudioContext: int          // audio_ctx
+
+    // Language and prompting
+    InitialPrompt: string option  // initial_prompt
+    DetectLanguage: bool          // detect_language
+
+    // Token suppression
+    SuppressBlank: bool           // suppress_blank
+    SuppressNonSpeech: bool       // suppress_nst
+
+    // Temperature and penalties
+    Temperature: float32          // temperature
+    MaxInitialTs: float32         // max_initial_ts
+    LengthPenalty: float32        // length_penalty
+    TemperatureInc: float32       // temperature_inc
+    EntropyThreshold: float32     // entropy_thold
+    LogProbThreshold: float32     // logprob_thold
+    NoSpeechThreshold: float32    // no_speech_thold
 }
 
 module WhisperConfig =
@@ -162,23 +166,19 @@ module WhisperConfig =
     let defaultConfig = {
         ModelPath = ""
         ModelType = Base
-        Language = Some "en"
+        Language = None
+        Strategy = Greedy
         ThreadCount = Environment.ProcessorCount
-        UseGpu = false
-        EnableTranslate = false
-        MaxSegmentLength = 0
-        Temperature = 0.0f
-        TemperatureInc = 0.2f
-        EntropyThreshold = 2.4f
-        LogProbThreshold = -1.0f
-        NoSpeechThreshold = 0.6f
-        SamplingStrategy = Greedy
-        MaxTokensPerSegment = 0
-        AudioContext = 0
+        MaxTextContext = 16384
+        OffsetMs = 0
+        DurationMs = 0
+        Translate = false
         NoContext = false
+        NoTimestamps = false
         SingleSegment = false
-        PrintSpecialTokens = false
+        PrintSpecial = false
         PrintProgress = false
+        PrintRealtime = false
         PrintTimestamps = false
         TokenTimestamps = false
         ThresholdPt = 0.01f
@@ -186,17 +186,17 @@ module WhisperConfig =
         MaxLen = 0
         SplitOnWord = false
         MaxTokens = 0
-        SpeedUp = false
         DebugMode = false
+        AudioContext = 0
         InitialPrompt = None
+        DetectLanguage = false
         SuppressBlank = true
-        SuppressNonSpeechTokens = true
+        SuppressNonSpeech = true
+        Temperature = 0.0f
         MaxInitialTs = 1.0f
         LengthPenalty = -1.0f
-        StreamingMode = false
-        ChunkSizeMs = 1000
-        OverlapMs = 200
-        MinConfidence = 0.5f
-        MaxContext = 512
-        StabilityThreshold = 0.7f
+        TemperatureInc = 0.2f
+        EntropyThreshold = 2.4f
+        LogProbThreshold = -1.0f
+        NoSpeechThreshold = 0.6f
     }

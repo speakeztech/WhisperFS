@@ -194,7 +194,7 @@ module ModelDownloader =
 
         match metadata with
         | None ->
-            return Error (ModelLoadError $"Unknown model type: {modelType}")
+            return Error (WhisperError.ModelLoadError $"Unknown model type: {modelType}")
         | Some meta ->
             try
                 // Check if already downloaded
@@ -281,42 +281,50 @@ module ModelDownloader =
                     fileStream.Close()
 
                     // Verify if needed
-                    match meta.Sha256 with
-                    | Some expectedHash ->
-                        modelEvents.Trigger(VerificationStarted modelType)
-                        use sha256 = SHA256.Create()
-                        use verifyStream = File.OpenRead(tempPath)
-                        let! hashBytes = sha256.ComputeHashAsync(verifyStream, cancellationToken) |> Async.AwaitTask
-                        let actualHash = BitConverter.ToString(hashBytes).Replace("-", "").ToLowerInvariant()
+                    let! verificationResult = async {
+                        match meta.Sha256 with
+                        | Some expectedHash ->
+                            modelEvents.Trigger(VerificationStarted modelType)
+                            use sha256 = SHA256.Create()
+                            use verifyStream = File.OpenRead(tempPath)
+                            let! hashBytes = sha256.ComputeHashAsync(verifyStream, cancellationToken) |> Async.AwaitTask
+                            let actualHash = BitConverter.ToString(hashBytes).Replace("-", "").ToLowerInvariant()
 
-                        if actualHash = expectedHash.ToLowerInvariant() then
-                            modelEvents.Trigger(VerificationCompleted(modelType, true))
-                        else
-                            File.Delete(tempPath)
-                            let error = "Model verification failed: hash mismatch"
-                            modelStatus.AddOrUpdate(modelType, Failed error, fun _ _ -> Failed error) |> ignore
-                            modelEvents.Trigger(VerificationCompleted(modelType, false))
-                            return Error (ModelLoadError error)
-                    | None -> ()
+                            if actualHash = expectedHash.ToLowerInvariant() then
+                                modelEvents.Trigger(VerificationCompleted(modelType, true))
+                                return Ok ()
+                            else
+                                File.Delete(tempPath)
+                                let error = "Model verification failed: hash mismatch"
+                                modelStatus.AddOrUpdate(modelType, Failed error, fun _ _ -> Failed error) |> ignore
+                                modelEvents.Trigger(VerificationCompleted(modelType, false))
+                                return Error (WhisperError.ModelLoadError error)
+                        | None ->
+                            return Ok ()
+                    }
 
-                    // Move to final location
-                    File.Move(tempPath, modelPath, true)
+                    match verificationResult with
+                    | Error e ->
+                        return Error e
+                    | Ok () ->
+                        // Move to final location
+                        File.Move(tempPath, modelPath, true)
 
-                    let finalSize = (FileInfo(modelPath)).Length
-                    modelStatus.AddOrUpdate(modelType, Downloaded(modelPath, finalSize), fun _ _ -> Downloaded(modelPath, finalSize)) |> ignore
-                    modelEvents.Trigger(DownloadCompleted(modelType, modelPath))
+                        let finalSize = (FileInfo(modelPath)).Length
+                        modelStatus.AddOrUpdate(modelType, Downloaded(modelPath, finalSize), fun _ _ -> Downloaded(modelPath, finalSize)) |> ignore
+                        modelEvents.Trigger(DownloadCompleted(modelType, modelPath))
 
-                    return Ok modelPath
+                        return Ok modelPath
 
             with
             | :? OperationCanceledException ->
                 modelStatus.AddOrUpdate(modelType, NotDownloaded, fun _ _ -> NotDownloaded) |> ignore
-                return Error Cancelled
+                return Error WhisperError.Cancelled
             | ex ->
                 let error = ex.Message
                 modelStatus.AddOrUpdate(modelType, Failed error, fun _ _ -> Failed error) |> ignore
                 modelEvents.Trigger(DownloadFailed(modelType, error))
-                return Error (NetworkError error)
+                return Error (WhisperError.NetworkError error)
     }
 
     /// Delete a downloaded model
@@ -329,9 +337,9 @@ module ModelDownloader =
                 modelEvents.Trigger(ModelDeleted modelType)
                 Ok ()
             else
-                Error (FileNotFound path)
+                Error (WhisperError.FileNotFound path)
         with ex ->
-            Error (ProcessingError(0, ex.Message))
+            Error (WhisperError.ProcessingError(0, ex.Message))
 
     /// Get total size of downloaded models
     let getTotalDownloadedSize() =

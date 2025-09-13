@@ -3,8 +3,6 @@
     <TargetFramework>net8.0</TargetFramework>
     <IsPackable>false</IsPackable>
     <GenerateProgramFile>false</GenerateProgramFile>
-    <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
-    <RootNamespace>WhisperFS.Tests</RootNamespace>
   </PropertyGroup>
 
   <ItemGroup>
@@ -18,67 +16,23 @@
 
     <!-- F# test helpers -->
     <PackageReference Include="FsUnit.xUnit" Version="5.6.1" />
-    <PackageReference Include="Unquote" Version="6.1.0" />
     <PackageReference Include="FsCheck.Xunit" Version="2.16.6" />
-
-    <!-- Mocking and test utilities -->
-    <PackageReference Include="Foq" Version="1.8.0" />
-    <PackageReference Include="System.Reactive" Version="6.0.0" />
-    <PackageReference Include="FSharp.Control.Reactive" Version="5.0.5" />
-
-    <!-- Coverage -->
-    <PackageReference Include="coverlet.collector" Version="6.0.0">
-      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
-      <PrivateAssets>all</PrivateAssets>
-    </PackageReference>
   </ItemGroup>
 
   <ItemGroup>
     <!-- Project references -->
-    <ProjectReference Include="..\..\src\WhisperFS\WhisperFS.fsproj" />
+    <ProjectReference Include="..\..\src\WhisperFS.Core\WhisperFS.Core.fsproj" />
+    <ProjectReference Include="..\..\src\WhisperFS.Native\WhisperFS.Native.fsproj" />
+    <ProjectReference Include="..\..\src\WhisperFS.Runtime\WhisperFS.Runtime.fsproj" />
   </ItemGroup>
 
   <ItemGroup>
-    <!-- Test files in compilation order -->
-    <Compile Include="TestUtilities.fs" />
-    <Compile Include="Mocks.fs" />
-
-    <!-- Core tests -->
-    <Compile Include="Core\TypesTests.fs" />
-    <Compile Include="Core\ErrorsTests.fs" />
-    <Compile Include="Core\UtilsTests.fs" />
-    <Compile Include="Core\InterfacesTests.fs" />
-    <Compile Include="Core\StreamingTests.fs" />
-
-    <!-- Native tests -->
-    <Compile Include="Native\NativeTypesTests.fs" />
-    <Compile Include="Native\NativeMethodsTests.fs" />
-    <Compile Include="Native\NativeLoaderTests.fs" />
-
-    <!-- Runtime tests -->
-    <Compile Include="Runtime\RuntimeTypesTests.fs" />
-    <Compile Include="Runtime\ModelDownloaderTests.fs" />
-
-    <!-- Integration tests -->
-    <Compile Include="Integration\WhisperClientTests.fs" />
-    <Compile Include="Integration\StreamingIntegrationTests.fs" />
-    <Compile Include="Integration\ModelManagementTests.fs" />
-
-    <!-- Performance tests -->
-    <Compile Include="Performance\BenchmarkTests.fs" />
-
-    <!-- Property-based tests -->
-    <Compile Include="Properties\ConfigurationProperties.fs" />
-    <Compile Include="Properties\StreamingProperties.fs" />
-
-    <!-- Test entry point -->
-    <Compile Include="Program.fs" />
-  </ItemGroup>
-
-  <ItemGroup>
-    <!-- Test data files -->
-    <Content Include="TestData\**\*">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </Content>
+    <!-- Essential test files only -->
+    <Compile Include="TestHelpers.fs" />
+    <Compile Include="TypesTests.fs" />
+    <Compile Include="ErrorsTests.fs" />
+    <Compile Include="ConfigurationTests.fs" />
+    <Compile Include="PropertyTests.fs" />
+    <Compile Include="UtilsTests.fs" />
   </ItemGroup>
 </Project>

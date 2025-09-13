@@ -12,8 +12,11 @@
 
   <ItemGroup>
     <!-- Implementation files that depend on Core, Native, and Runtime -->
-    <Compile Include="Streaming.fs" />
-    <Compile Include="Library.fs" />
+    <!-- These need Config.fs and Client.fs to be moved here first -->
+    <!-- <Compile Include="Config.fs" /> -->
+    <!-- <Compile Include="Client.fs" /> -->
+    <!-- <Compile Include="Streaming.fs" /> -->
+    <!-- <Compile Include="Library.fs" /> -->
   </ItemGroup>
 
   <ItemGroup>

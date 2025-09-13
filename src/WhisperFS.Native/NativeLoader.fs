@@ -168,7 +168,7 @@ module NativeLibraryLoader =
     let downloadRuntimeAsync (runtime: RuntimeInfo) = async {
         match runtime.DownloadUrl with
         | None ->
-            return Error (NativeLibraryError
+            return Error (WhisperError.NativeLibraryError
                 $"No download URL available for {runtime.Type} on {runtime.Platform}")
         | Some url ->
             try
@@ -216,14 +216,14 @@ module NativeLibraryLoader =
                         if File.Exists(libraryPath) then
                             return Ok libraryPath
                         else
-                            return Error (NativeLibraryError
+                            return Error (WhisperError.NativeLibraryError
                                 $"Failed to extract {runtime.FileName} from download")
                     with ex ->
-                        return Error (NativeLibraryError
+                        return Error (WhisperError.NativeLibraryError
                             $"Failed to extract runtime: {ex.Message}")
 
             with ex ->
-                return Error (NetworkError
+                return Error (WhisperError.NetworkError
                     $"Failed to download runtime from {url}: {ex.Message}")
     }
 
@@ -236,7 +236,7 @@ module NativeLibraryLoader =
             async {
                 match runtimes with
                 | [] ->
-                    return Error (NativeLibraryError
+                    return Error (WhisperError.NativeLibraryError
                         "No compatible runtime found")
                 | runtime::rest ->
                     // Try to download if needed

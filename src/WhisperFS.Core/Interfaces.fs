@@ -103,4 +103,4 @@ and ServiceStatus =
     | Idle
     | Recording
     | Transcribing
-    | Error of string
+    | ServiceError of string

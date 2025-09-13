@@ -2,7 +2,14 @@
   "permissions": {
     "allow": [
       "Bash(dotnet build:*)",
-      "Bash(dotnet sln:*)"
+      "Bash(dotnet sln:*)",
+      "Bash(dotnet test:*)",
+      "WebFetch(domain:github.com)",
+      "WebFetch(domain:raw.githubusercontent.com)",
+      "Bash(ls:*)",
+      "Bash(findstr:*)",
+      "Bash(copy:*)",
+      "Bash(del Mocks.fs Program.fs)"
     ],
     "deny": [],
     "ask": []

@@ -11,19 +11,15 @@ let ``Valid thread count is always positive`` (PositiveInt threads) =
     config.ThreadCount > 0
 
 [<Property>]
-let ``Chunk size is always larger than overlap`` (PositiveInt chunkMs) (NonNegativeInt overlapMs) =
-    let config = {
-        TestConfigBuilder().WithDefaults() with
-            ChunkSizeMs = chunkMs
-            OverlapMs = min overlapMs (chunkMs - 1)
-    }
-    config.ChunkSizeMs > config.OverlapMs
+let ``Max text context is always positive`` (PositiveInt maxContext) =
+    let config = { TestConfigBuilder().WithDefaults() with MaxTextContext = maxContext }
+    config.MaxTextContext > 0
 
 [<Property>]
-let ``Confidence values are always between 0 and 1`` (confidence: float32) =
-    let clampedConfidence = max 0.0f (min 1.0f confidence)
-    let config = { TestConfigBuilder().WithDefaults() with MinConfidence = clampedConfidence }
-    config.MinConfidence >= 0.0f && config.MinConfidence <= 1.0f
+let ``Threshold values are always between 0 and 1`` (threshold: float32) =
+    let clampedThreshold = max 0.0f (min 1.0f threshold)
+    let config = { TestConfigBuilder().WithDefaults() with ThresholdPt = clampedThreshold }
+    config.ThresholdPt >= 0.0f && config.ThresholdPt <= 1.0f
 
 [<Property>]
 let ``Temperature is always non-negative`` (temp: float32) =
@@ -38,15 +34,15 @@ let ``Model size calculation is consistent`` (model: ModelType) =
     size1 = size2
 
 [<Property>]
-let ``Beam size is within reasonable bounds`` (PositiveInt beamSize) =
-    let clampedBeam = min beamSize 100  // Reasonable upper limit
-    let config = { TestConfigBuilder().WithDefaults() with BeamSize = clampedBeam }
-    config.BeamSize > 0 && config.BeamSize <= 100
+let ``Max tokens is within reasonable bounds`` (NonNegativeInt maxTokens) =
+    let clampedTokens = min maxTokens 1000  // Reasonable upper limit
+    let config = { TestConfigBuilder().WithDefaults() with MaxTokens = clampedTokens }
+    config.MaxTokens >= 0 && config.MaxTokens <= 1000
 
 [<Property>]
-let ``Max context is always positive`` (PositiveInt maxContext) =
-    let config = { TestConfigBuilder().WithDefaults() with MaxContext = maxContext }
-    config.MaxContext > 0
+let ``Audio context is non-negative`` (NonNegativeInt audioCtx) =
+    let config = { TestConfigBuilder().WithDefaults() with AudioContext = audioCtx }
+    config.AudioContext >= 0
 
 [<Property>]
 let ``Stability threshold is between 0 and 1`` (threshold: float32) =
@@ -71,6 +67,6 @@ let ``Suppression flags are boolean`` (suppressBlank: bool) (suppressNonSpeech: 
     let config = {
         TestConfigBuilder().WithDefaults() with
             SuppressBlank = suppressBlank
-            SuppressNonSpeechTokens = suppressNonSpeech
+            SuppressNonSpeech = suppressNonSpeech
     }
-    (config.SuppressBlank = suppressBlank) && (config.SuppressNonSpeechTokens = suppressNonSpeech)
+    (config.SuppressBlank = suppressBlank) && (config.SuppressNonSpeech = suppressNonSpeech)
