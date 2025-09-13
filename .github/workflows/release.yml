@@ -66,7 +66,7 @@ jobs:
         brew install pkg-config
 
     - name: Cache NuGet packages
-      uses: actions/cache@v3
+      uses: actions/cache@v4
       with:
         path: ~/.nuget/packages
         key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.fsproj') }}
@@ -74,7 +74,7 @@ jobs:
           ${{ runner.os }}-nuget-
 
     - name: Cache WhisperFS runtime downloads
-      uses: actions/cache@v3
+      uses: actions/cache@v4
       with:
         path: ~/.local/share/WhisperFS
         key: ${{ runner.os }}-whisperfs-runtime-${{ hashFiles('src/WhisperFS.Native/NativeLoader.fs') }}
@@ -108,7 +108,7 @@ jobs:
 
     - name: Upload test results
       if: always()
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: test-results-${{ matrix.os }}
         path: |
@@ -117,7 +117,7 @@ jobs:
 
     - name: Upload coverage to Codecov
       if: matrix.os == 'ubuntu-latest'
-      uses: codecov/codecov-action@v3
+      uses: codecov/codecov-action@v4
       with:
         files: ./coverage/coverage.opencover.xml
         flags: unittests
@@ -176,13 +176,13 @@ jobs:
           --output ./artifacts
 
     - name: Upload NuGet packages
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: nuget-packages
         path: artifacts/*.nupkg
 
     - name: Upload symbol packages
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: symbol-packages
         path: artifacts/*.snupkg
@@ -216,7 +216,7 @@ jobs:
       uses: actions/checkout@v4
 
     - name: Download artifacts
-      uses: actions/download-artifact@v3
+      uses: actions/download-artifact@v4
       with:
         name: nuget-packages
         path: ./artifacts
