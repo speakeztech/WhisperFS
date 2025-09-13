@@ -135,6 +135,41 @@ type EventAggregator<'T>() =
             subscribers <- []
         )
 
-// Performance tracking removed - was only used in commented-out Streaming.fs
-// If needed in future, should use the PerformanceMetrics type from Types.fs
+/// Performance monitoring for transcription operations
+module PerformanceMonitor =
+    open System.Diagnostics
+
+    let private stopwatch = Stopwatch()
+    let mutable private processedAudio = TimeSpan.Zero
+    let mutable private segmentCount = 0
+    let mutable private tokenCount = 0
+    let mutable private errorCount = 0
+
+    let start() = stopwatch.Start()
+    let stop() = stopwatch.Stop()
+    let reset() =
+        stopwatch.Reset()
+        processedAudio <- TimeSpan.Zero
+        segmentCount <- 0
+        tokenCount <- 0
+        errorCount <- 0
+
+    let addAudioProcessed (duration: TimeSpan) =
+        processedAudio <- processedAudio + duration
+
+    let addSegment() = segmentCount <- segmentCount + 1
+    let addTokens(count: int) = tokenCount <- tokenCount + count
+    let addError() = errorCount <- errorCount + 1
+
+    let getMetrics() : PerformanceMetrics = {
+        TotalProcessingTime = stopwatch.Elapsed
+        TotalAudioProcessed = processedAudio
+        AverageRealTimeFactor =
+            if processedAudio.TotalSeconds > 0.0 then
+                stopwatch.Elapsed.TotalSeconds / processedAudio.TotalSeconds
+            else 0.0
+        SegmentsProcessed = segmentCount
+        TokensGenerated = tokenCount
+        ErrorCount = errorCount
+    }
 

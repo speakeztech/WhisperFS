@@ -1,6 +1,7 @@
 namespace WhisperFS
 
 open System
+open System.Reactive.Linq
 
 /// Main WhisperFS API entry point
 module WhisperFS =
@@ -39,7 +40,7 @@ module WhisperFS =
                 | AudioFile path -> BatchResult (async { return Error (NotImplemented "AudioFile") })
 
             member _.Events =
-                Observable.empty
+                Observable.Empty()
 
             member _.Reset() =
                 Ok()

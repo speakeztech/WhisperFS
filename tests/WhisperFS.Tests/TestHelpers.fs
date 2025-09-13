@@ -11,6 +11,7 @@ module TestData =
         ModelPath = "/test/model.bin"
         ModelType = ModelType.Base
         Language = Some "en"
+        ChunkSizeMs = 1000
         Strategy = SamplingStrategy.Greedy
         ThreadCount = 4
         MaxTextContext = 16384

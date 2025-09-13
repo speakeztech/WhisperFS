@@ -14,6 +14,7 @@
     <Compile Include="RuntimeTypes.fs" />
     <Compile Include="RuntimeDetection.fs" />
     <Compile Include="ModelDownloader.fs" />
+    <Compile Include="Library.fsi" />
     <Compile Include="Library.fs" />
   </ItemGroup>
 

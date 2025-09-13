@@ -12,11 +12,9 @@
 
   <ItemGroup>
     <!-- Implementation files that depend on Core, Native, and Runtime -->
-    <!-- These need Config.fs and Client.fs to be moved here first -->
-    <!-- <Compile Include="Config.fs" /> -->
-    <!-- <Compile Include="Client.fs" /> -->
-    <!-- <Compile Include="Streaming.fs" /> -->
-    <!-- <Compile Include="Library.fs" /> -->
+    <Compile Include="Streaming.fs" />
+    <Compile Include="Library.fsi" />
+    <Compile Include="Library.fs" />
   </ItemGroup>
 
   <ItemGroup>
@@ -27,8 +25,8 @@
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="FSharp.Control.Reactive" Version="5.0.5" />
-    <PackageReference Include="System.Reactive" Version="6.0.0" />
+    <PackageReference Include="FSharp.Control.Reactive" Version="6.1.2" />
+    <PackageReference Include="System.Reactive" Version="6.0.1" />
     <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="8.0.0" />
   </ItemGroup>
 

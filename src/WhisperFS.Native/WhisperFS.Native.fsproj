@@ -15,6 +15,7 @@
     <Compile Include="NativeTypes.fs" />
     <Compile Include="NativeMethods.fs" />
     <Compile Include="NativeLoader.fs" />
+    <Compile Include="Library.fsi" />
     <Compile Include="Library.fs" />
   </ItemGroup>
 

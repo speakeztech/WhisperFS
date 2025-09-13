@@ -116,6 +116,9 @@ type WhisperConfig = {
     ModelType: ModelType
     Language: string option  // None for auto-detect
 
+    // Streaming options
+    ChunkSizeMs: int           // Chunk size for streaming audio
+
     // whisper.cpp parameters (matching whisper_full_params)
     Strategy: SamplingStrategy  // sampling strategy
     ThreadCount: int            // n_threads
@@ -167,6 +170,7 @@ module WhisperConfig =
         ModelPath = ""
         ModelType = Base
         Language = None
+        ChunkSizeMs = 1000  // 1 second chunks for streaming
         Strategy = Greedy
         ThreadCount = Environment.ProcessorCount
         MaxTextContext = 16384

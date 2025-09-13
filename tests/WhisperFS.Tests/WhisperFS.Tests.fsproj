@@ -24,6 +24,7 @@
     <ProjectReference Include="..\..\src\WhisperFS.Core\WhisperFS.Core.fsproj" />
     <ProjectReference Include="..\..\src\WhisperFS.Native\WhisperFS.Native.fsproj" />
     <ProjectReference Include="..\..\src\WhisperFS.Runtime\WhisperFS.Runtime.fsproj" />
+    <ProjectReference Include="..\..\src\WhisperFS\WhisperFS.fsproj" />
   </ItemGroup>
 
   <ItemGroup>
@@ -34,5 +35,6 @@
     <Compile Include="ConfigurationTests.fs" />
     <Compile Include="PropertyTests.fs" />
     <Compile Include="UtilsTests.fs" />
+    <Compile Include="WhisperFSIntegrationTests.fs" />
   </ItemGroup>
 </Project>

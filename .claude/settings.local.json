@@ -9,7 +9,10 @@
       "Bash(ls:*)",
       "Bash(findstr:*)",
       "Bash(copy:*)",
-      "Bash(del Mocks.fs Program.fs)"
+      "Bash(del Mocks.fs Program.fs)",
+      "Bash(find:*)",
+      "WebSearch",
+      "Bash(dotnet clean:*)"
     ],
     "deny": [],
     "ask": []

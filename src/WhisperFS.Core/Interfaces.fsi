@@ -4,54 +4,54 @@ open System
 open System.IO
 open System.Collections.Generic
 
-/// Input types for unified processing
+/// Input types for unified audio processing
 type WhisperInput =
     | BatchAudio of samples:float32[]
     | StreamingAudio of stream:IObservable<float32[]>
     | AudioFile of path:string
 
-/// Output types for unified processing
+/// Output types for unified processing results
 type WhisperOutput =
     | BatchResult of Async<Result<TranscriptionResult, WhisperError>>
     | StreamingResult of IObservable<Result<TranscriptionEvent, WhisperError>>
 
-/// Unified client interface with consistent Result types
+/// Primary client interface with comprehensive transcription capabilities
 type IWhisperClient =
     inherit IDisposable
 
-    /// Process audio samples (batch mode)
+    /// Process audio samples in batch mode
     abstract member ProcessAsync: samples:float32[] -> Async<Result<TranscriptionResult, WhisperError>>
 
-    /// Process audio stream (streaming mode) - returns observable of results
+    /// Process streaming audio with real-time events
     abstract member ProcessStream: audioStream:IObservable<float32[]> -> IObservable<Result<TranscriptionEvent, WhisperError>>
 
-    /// Process audio file
+    /// Process audio file directly
     abstract member ProcessFileAsync: path:string -> Async<Result<TranscriptionResult, WhisperError>>
 
-    /// Process with either batch or streaming based on input type
+    /// Unified processing based on input type
     abstract member Process: input:WhisperInput -> WhisperOutput
 
-    /// Observable events for all transcription updates
+    /// All transcription events stream
     abstract member Events: IObservable<Result<TranscriptionEvent, WhisperError>>
 
-    /// Reset state (for streaming)
+    /// Reset state for streaming continuation
     abstract member Reset: unit -> Result<unit, WhisperError>
 
     /// Detect language from audio samples
     abstract member DetectLanguageAsync: samples:float32[] -> Async<Result<LanguageDetection, WhisperError>>
 
-    /// Get current performance metrics
+    /// Get performance metrics for monitoring
     abstract member GetMetrics: unit -> PerformanceMetrics
 
-/// Legacy batch processor interface (for backward compatibility)
-[<Obsolete("Use IWhisperClient for new implementations")>]
+/// Legacy batch processor (for backward compatibility)
+[<System.Obsolete("Use IWhisperClient for new implementations")>]
 type IWhisperProcessor =
     inherit IDisposable
     abstract member ProcessAsync: audioPath:string -> Async<TranscriptionResult>
     abstract member ProcessAsync: audioStream:Stream -> IAsyncEnumerable<Segment>
     abstract member ProcessAsync: samples:float32[] -> Async<TranscriptionResult>
 
-/// Model factory with Result types
+/// Model factory for client creation
 type IWhisperFactory =
     inherit IDisposable
     abstract member CreateClient: config:WhisperConfig -> Result<IWhisperClient, WhisperError>
@@ -59,17 +59,17 @@ type IWhisperFactory =
     abstract member FromBuffer: buffer:byte[] -> Result<IWhisperFactory, WhisperError>
     abstract member GetModelInfo: unit -> ModelType
 
-/// Model management
+/// Model management interfaces
 module ModelManagement =
 
-    /// Download model (equivalent to WhisperGgmlDownloader)
+    /// Model downloading with progress tracking
     type IModelDownloader =
         abstract member DownloadModelAsync: modelType:ModelType -> Async<Result<string, WhisperError>>
         abstract member GetModelPath: modelType:ModelType -> string
         abstract member IsModelDownloaded: modelType:ModelType -> bool
         abstract member GetDownloadProgress: unit -> float
 
-/// Audio capture interface
+/// Audio capture interface for real-time processing
 type IAudioCapture =
     inherit IDisposable
     abstract member StartCapture: unit -> Result<unit, WhisperError>
@@ -78,7 +78,7 @@ type IAudioCapture =
     abstract member SampleRate: int
     abstract member Channels: int
 
-/// Voice Activity Detection interface
+/// Voice Activity Detection for speech boundary detection
 type IVoiceActivityDetector =
     abstract member ProcessFrame: samples:float32[] -> VadResult
     abstract member Reset: unit -> unit
@@ -90,7 +90,7 @@ and VadResult =
     | SpeechEnded of duration:TimeSpan
     | Silence
 
-/// Transcription service interface with Result types
+/// High-level transcription service with state management
 type ITranscriptionService =
     inherit IDisposable
     abstract member StartRecording: unit -> Result<unit, WhisperError>
