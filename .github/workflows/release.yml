@@ -45,6 +45,7 @@ jobs:
       uses: actions/setup-dotnet@v4
       with:
         dotnet-version: 8.0.x
+        dotnet-quality: 'ga'
 
     - name: Install Linux dependencies
       if: runner.os == 'Linux'
@@ -132,6 +133,7 @@ jobs:
       uses: actions/setup-dotnet@v4
       with:
         dotnet-version: 8.0.x
+        dotnet-quality: 'ga'
 
     - name: Prepare runtime metadata
       run: |
