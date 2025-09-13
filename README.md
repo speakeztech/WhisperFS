@@ -201,7 +201,7 @@ let! result = processor.ProcessAsync(audioFile)
 | Streaming | ❌ | ✅ Real-time with state management |
 | Token Confidence | ❌ | ✅ Per-token probabilities |
 | Language Detection | ❌ | ✅ With confidence scores |
-| Custom Prompts | ❌ | ✅ Domain-specific vocabulary |
+| Custom Prompts | ❌ | ✅ Context hints for technical terms |
 | Beam Search | ❌ | ✅ Configurable parameters |
 | Error Handling | Exceptions | Result types |
 | Observables | ❌ | ✅ Reactive extensions |
@@ -222,16 +222,6 @@ dotnet test
 # Pack NuGet packages
 dotnet pack -c Release
 ```
-
-## Examples
-
-See the [examples](examples/) directory for complete working examples:
-
-- `BasicTranscription.fs` - Simple file transcription
-- `StreamingMicrophone.fs` - Real-time microphone transcription
-- `LanguageDetection.fs` - Multi-language detection
-- `BatchProcessing.fs` - Processing multiple files
-- `CustomVocabulary.fs` - Using domain-specific prompts
 
 ## Performance
 
