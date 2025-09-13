@@ -1,0 +1,24 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <PackageId>WhisperFS.Runtime</PackageId>
+    <Version>1.0.0</Version>
+    <Authors>WhisperFS Contributors</Authors>
+    <Description>Runtime library management for WhisperFS</Description>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Include="RuntimeTypes.fs" />
+    <Compile Include="RuntimeDetection.fs" />
+    <Compile Include="ModelDownloader.fs" />
+    <Compile Include="Library.fs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="System.Net.Http" Version="4.3.4" />
+  </ItemGroup>
+
+</Project>
