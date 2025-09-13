@@ -45,20 +45,6 @@ module NativeLibraryLoader =
     /// Pinned version for stability
     let [<Literal>] WhisperCppVersion = "v1.7.6"
 
-    /// Get the native library directory
-    let getNativeLibraryDir() =
-        let baseDir =
-            match Environment.GetEnvironmentVariable("WHISPERFS_NATIVE_DIR") with
-            | null | "" ->
-                Path.Combine(
-                    Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-                    "WhisperFS",
-                    "native",
-                    WhisperCppVersion)
-            | dir -> dir
-        Directory.CreateDirectory(baseDir) |> ignore
-        baseDir
-
     /// Detect current platform
     let detectPlatform() =
         let arch =
@@ -106,6 +92,41 @@ module NativeLibraryLoader =
         | Windows _ -> "whisper.dll"
         | Linux _ -> "libwhisper.so"
         | MacOS _ -> "libwhisper.dylib"
+
+    /// Get the application's base directory
+    let getApplicationDirectory() =
+        Path.GetDirectoryName(System.Reflection.Assembly.GetExecutingAssembly().Location)
+
+    /// Get runtime identifier for the current platform
+    let getRuntimeIdentifier() =
+        let platform = detectPlatform()
+        match platform with
+        | Windows X64 -> "win-x64"
+        | Windows X86 -> "win-x86"
+        | Windows Arm64 -> "win-arm64"
+        | Linux X64 -> "linux-x64"
+        | Linux Arm64 -> "linux-arm64"
+        | MacOS X64 -> "osx-x64"
+        | MacOS Arm64 -> "osx-arm64"
+        | _ -> "win-x64"
+
+    /// Get paths to check for native library (in priority order)
+    let getNativeLibrarySearchPaths() =
+        let appDir = getApplicationDirectory()
+        let rid = getRuntimeIdentifier()
+        let platform = detectPlatform()
+        let libraryName = getLibraryFileName platform
+
+        [
+            // 1. Direct in application directory (simplest deployment)
+            Path.Combine(appDir, libraryName)
+
+            // 2. Standard .NET runtimes folder structure
+            Path.Combine(appDir, "runtimes", rid, "native", libraryName)
+
+            // 3. Platform-specific subfolder
+            Path.Combine(appDir, rid, libraryName)
+        ]
 
     /// Check if CUDA is available
     let hasCudaSupport() =
@@ -205,16 +226,20 @@ module NativeLibraryLoader =
                 $"No download URL available for {runtime.Type} on {runtime.Platform}")
         | Some url ->
             try
-                let nativeDir = getNativeLibraryDir()
-                let runtimeDir = Path.Combine(nativeDir, runtime.Type.ToString().ToLower())
-                Directory.CreateDirectory(runtimeDir) |> ignore
+                let appDir = getApplicationDirectory()
+                let rid = getRuntimeIdentifier()
+                // Download to standard .NET location: runtimes/{rid}/native/
+                let downloadDir = Path.Combine(appDir, "runtimes", rid, "native")
+                Directory.CreateDirectory(downloadDir) |> ignore
 
-                let libraryPath = Path.Combine(runtimeDir, runtime.FileName)
+                let libraryPath = Path.Combine(downloadDir, runtime.FileName)
 
                 // Check if already downloaded
                 if File.Exists(libraryPath) then
+                    printfn $"Native library already exists at {libraryPath}"
                     return Ok libraryPath
                 else
+                    printfn $"Downloading {runtime.Type} from {url}"
                     // Download the zip file
                     use client = new HttpClient()
                     client.DefaultRequestHeaders.Add("User-Agent", "WhisperFS/1.0")
@@ -225,16 +250,16 @@ module NativeLibraryLoader =
                     let! bytes = response.Content.ReadAsByteArrayAsync() |> Async.AwaitTask
 
                     // Save and extract
-                    let zipPath = Path.Combine(runtimeDir, "temp.zip")
+                    let zipPath = Path.Combine(downloadDir, "temp.zip")
                     File.WriteAllBytes(zipPath, bytes)
 
                     try
                         // Extract the zip
-                        ZipFile.ExtractToDirectory(zipPath, runtimeDir, true)
+                        ZipFile.ExtractToDirectory(zipPath, downloadDir, true)
 
                         // Find the whisper.dll in extracted files
                         let extractedDll =
-                            Directory.GetFiles(runtimeDir, runtime.FileName, SearchOption.AllDirectories)
+                            Directory.GetFiles(downloadDir, runtime.FileName, SearchOption.AllDirectories)
                             |> Array.tryHead
 
                         match extractedDll with
@@ -260,43 +285,113 @@ module NativeLibraryLoader =
                     $"Failed to download runtime from {url}: {ex.Message}")
     }
 
+    /// Try to find and load native library from standard locations
+    let tryLoadFromStandardPaths() =
+        let searchPaths = getNativeLibrarySearchPaths()
+
+        printfn "Searching for native library in standard locations:"
+        let mutable result = None
+        for path in searchPaths do
+            if result.IsNone then
+                printfn $"  Checking: {path}"
+                if File.Exists(path) then
+                    try
+                        let mutable handle = IntPtr.Zero
+                        if NativeLibrary.TryLoad(path, &handle) then
+                            printfn $"Successfully loaded native library from: {path}"
+                            let platform = detectPlatform()
+                            let runtime = {
+                                Type = Cpu  // Default to CPU runtime for local files
+                                Platform = platform
+                                Priority = 1
+                                FileName = getLibraryFileName platform
+                                DownloadUrl = None
+                                Available = true
+                            }
+                            result <- Some runtime
+                        else
+                            printfn $"  Failed to load library from: {path}"
+                    with ex ->
+                        printfn $"  Exception loading from {path}: {ex.Message}"
+
+        if result.IsNone then
+            printfn "Native library not found in standard locations"
+        result
+
     /// Load the best available runtime
     let loadBestRuntimeAsync() = async {
-        let runtimes = detectAvailableRuntimes()
+        // First, try to load from standard .NET locations
+        match tryLoadFromStandardPaths() with
+        | Some runtime ->
+            printfn "Using locally installed native library"
+            return Ok runtime
+        | None ->
+            // If not found locally, try to download
+            printfn "Native library not found locally, attempting to download..."
 
-        // Try runtimes in priority order
-        let rec tryLoad (runtimes: RuntimeInfo list) =
-            async {
-                match runtimes with
-                | [] ->
-                    return Error (WhisperError.NativeLibraryError
-                        "No compatible runtime found")
-                | runtime::rest ->
-                    // Try to download if needed
-                    let! downloadResult = downloadRuntimeAsync runtime
+            let runtimes = detectAvailableRuntimes()
+            printfn $"Detected {runtimes.Length} available runtimes for download:"
+            for runtime in runtimes do
+                printfn $"  - {runtime.Type} (Priority: {runtime.Priority})"
 
-                    match downloadResult with
-                    | Ok libraryPath ->
-                        try
-                            // Try to load the library
-                            let mutable handle = IntPtr.Zero
-                            let loaded = NativeLibrary.TryLoad(libraryPath, &handle)
-                            if loaded then
-                                printfn $"Loaded WhisperFS native runtime: {runtime.Type} from {libraryPath}"
-                                return Ok runtime
-                            else
-                                // Try next runtime
+            // Try runtimes in priority order
+            let rec tryLoad (runtimes: RuntimeInfo list) =
+                async {
+                    match runtimes with
+                    | [] ->
+                        return Error (WhisperError.NativeLibraryError
+                            "No compatible runtime found. Please ensure whisper.dll is in the application directory or install the WhisperFS.Native package.")
+                    | runtime::rest ->
+                        // Check in application's runtimes directory
+                        let appDir = getApplicationDirectory()
+                        let rid = getRuntimeIdentifier()
+                        let downloadPath =
+                            Path.Combine(appDir, "runtimes", rid, "native", runtime.FileName)
+
+                        let downloadDir = Path.GetDirectoryName(downloadPath)
+                        Directory.CreateDirectory(downloadDir) |> ignore
+
+                        if File.Exists(downloadPath) then
+                            printfn $"Found cached download at: {downloadPath}"
+                            try
+                                let mutable handle = IntPtr.Zero
+                                if NativeLibrary.TryLoad(downloadPath, &handle) then
+                                    printfn $"Successfully loaded cached runtime: {runtime.Type}"
+                                    return Ok runtime
+                                else
+                                    printfn $"Failed to load cached runtime, trying next..."
+                                    return! tryLoad rest
+                            with ex ->
+                                printfn $"Exception loading cached runtime: {ex.Message}"
                                 return! tryLoad rest
-                        with ex ->
-                            // Log error and try next runtime
-                            printfn $"Failed to load {runtime.Type}: {ex.Message}"
-                            return! tryLoad rest
-                    | Error _ ->
-                        // Try next runtime
-                        return! tryLoad rest
-            }
+                        else
+                            // Download the runtime
+                            match runtime.DownloadUrl with
+                            | Some url ->
+                                printfn $"Downloading {runtime.Type} from {url}..."
+                                let! downloadResult = downloadRuntimeAsync runtime
+                                match downloadResult with
+                                | Ok libraryPath ->
+                                    try
+                                        let mutable handle = IntPtr.Zero
+                                        if NativeLibrary.TryLoad(libraryPath, &handle) then
+                                            printfn $"Successfully loaded downloaded runtime: {runtime.Type}"
+                                            return Ok runtime
+                                        else
+                                            printfn $"Failed to load downloaded runtime, trying next..."
+                                            return! tryLoad rest
+                                    with ex ->
+                                        printfn $"Exception loading downloaded runtime: {ex.Message}"
+                                        return! tryLoad rest
+                                | Error err ->
+                                    printfn $"Download failed: {err}"
+                                    return! tryLoad rest
+                            | None ->
+                                printfn $"No download URL for {runtime.Type}, trying next..."
+                                return! tryLoad rest
+                }
 
-        return! tryLoad runtimes
+            return! tryLoad runtimes
     }
 
     /// Ensure a specific runtime is available
@@ -320,10 +415,17 @@ module NativeLibraryLoader =
     /// Get path to runtime library
     let getRuntimePath (runtimeType: RuntimeType) =
         let platform = detectPlatform()
-        let nativeDir = getNativeLibraryDir()
-        let runtimeDir = Path.Combine(nativeDir, runtimeType.ToString().ToLower())
+        let rid = getRuntimeIdentifier()
         let libraryName = getLibraryFileName platform
-        Path.Combine(runtimeDir, libraryName)
+
+        // Check standard locations first
+        let searchPaths = getNativeLibrarySearchPaths()
+        match searchPaths |> List.tryFind File.Exists with
+        | Some path -> path
+        | None ->
+            // Return download location in runtimes directory
+            let appDir = getApplicationDirectory()
+            Path.Combine(appDir, "runtimes", rid, "native", libraryName)
 
     /// Track if the library has been initialized
     let mutable private isInitialized = false

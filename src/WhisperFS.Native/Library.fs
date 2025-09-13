@@ -1,5 +1,7 @@
 namespace WhisperFS.Native
 
+open System.IO
+
 /// Public API for native library management
 module Library =
 
@@ -14,7 +16,11 @@ module Library =
 
     /// Get the path where native libraries are stored
     let getNativeLibraryDirectory() =
-        NativeLibraryLoader.getNativeLibraryDir()
+        let paths = NativeLibraryLoader.getNativeLibrarySearchPaths()
+        if paths.Length > 0 then
+            Path.GetDirectoryName(paths.[0])
+        else
+            Path.Combine(System.AppDomain.CurrentDomain.BaseDirectory, "runtimes")
 
     /// Detect which runtimes are available on this system
     let getAvailableRuntimes() =
@@ -23,5 +29,5 @@ module Library =
     /// Information about the native library loader
     let getVersionInfo() =
         {| WhisperCppVersion = NativeLibraryLoader.WhisperCppVersion
-           NativeDirectory = NativeLibraryLoader.getNativeLibraryDir()
+           NativeDirectory = getNativeLibraryDirectory()
            Platform = NativeLibraryLoader.detectPlatform() |}
