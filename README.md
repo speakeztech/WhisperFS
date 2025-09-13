@@ -262,3 +262,5 @@ MIT License - see [LICENSE](LICENSE) for details.
 - 📖 [Documentation](https://github.com/yourusername/WhisperFS/wiki)
 - 🐛 [Issue Tracker](https://github.com/yourusername/WhisperFS/issues)
 - 💬 [Discussions](https://github.com/yourusername/WhisperFS/discussions)
+
+![WhisperFS Banner](img/WhisperFS_banner.png)
