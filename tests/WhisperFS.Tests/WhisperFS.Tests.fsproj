@@ -36,6 +36,7 @@
     <Compile Include="ConfigurationTests.fs" />
     <Compile Include="PropertyTests.fs" />
     <Compile Include="UtilsTests.fs" />
+    <Compile Include="CoreUtilsTests.fs" />
     <Compile Include="WhisperFSIntegrationTests.fs" />
   </ItemGroup>
 </Project>

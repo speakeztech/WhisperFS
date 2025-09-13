@@ -325,30 +325,63 @@ module NativeLibraryLoader =
         let libraryName = getLibraryFileName platform
         Path.Combine(runtimeDir, libraryName)
 
+    /// Track if the library has been initialized
+    let mutable private isInitialized = false
+    let mutable private initializationResult : Result<RuntimeInfo, WhisperError> option = None
+    let private initializationLock = obj()
+
     /// Initialize native library (call once at startup)
     let initialize() = async {
-        // Set native library resolver
-        NativeLibrary.SetDllImportResolver(typeof<WhisperFullParams>.Assembly,
-            DllImportResolver(fun libraryName assembly searchPath ->
-                if libraryName = WhisperNative.LibraryName ||
-                   libraryName.Contains("whisper") then
-                    // Try to get the best runtime
-                    let runtime =
-                        detectAvailableRuntimes()
-                        |> List.tryHead
+        // Check if already initialized
+        let needsInit =
+            lock initializationLock (fun () ->
+                if isInitialized then
+                    false
+                else
+                    isInitialized <- true
+                    true
+            )
 
-                    match runtime with
-                    | Some r ->
-                        let path = getRuntimePath r.Type
-                        if File.Exists(path) then
-                            NativeLibrary.Load(path)
+        if not needsInit then
+            // Already initialized, return cached result or default
+            match initializationResult with
+            | Some result -> return result
+            | None -> return! loadBestRuntimeAsync()
+        else
+            // Set native library resolver
+            try
+                NativeLibrary.SetDllImportResolver(typeof<WhisperFullParams>.Assembly,
+                    DllImportResolver(fun libraryName assembly searchPath ->
+                        if libraryName = WhisperNative.LibraryName ||
+                           libraryName.Contains("whisper") then
+                            // Try to get the best runtime
+                            let runtime =
+                                detectAvailableRuntimes()
+                                |> List.tryHead
+
+                            match runtime with
+                            | Some r ->
+                                let path = getRuntimePath r.Type
+                                if File.Exists(path) then
+                                    NativeLibrary.Load(path)
+                                else
+                                    IntPtr.Zero
+                            | None -> IntPtr.Zero
                         else
                             IntPtr.Zero
-                    | None -> IntPtr.Zero
-                else
-                    IntPtr.Zero
-            ))
+                    ))
+            with
+            | :? System.InvalidOperationException as ex when ex.Message.Contains("resolver is already set") ->
+                // Already initialized by another call, that's fine
+                ()
+            | ex ->
+                // Re-throw other exceptions
+                raise ex
 
-        // Try to load the best runtime
-        return! loadBestRuntimeAsync()
+            // Try to load the best runtime
+            let! result = loadBestRuntimeAsync()
+            lock initializationLock (fun () ->
+                initializationResult <- Some result
+            )
+            return result
     }

@@ -7,4 +7,7 @@ module WhisperFS =
     val initialize: unit -> Async<Result<unit, WhisperError>>
 
     /// Create a whisper client with configuration
-    val createClient: config:WhisperConfig -> IWhisperClient
+    val createClient: config:WhisperConfig -> Async<Result<IWhisperClient, WhisperError>>
+
+    /// Create a whisper client from a specific model path
+    val createClientFromModel: modelPath:string -> config:WhisperConfig -> Async<Result<IWhisperClient, WhisperError>>

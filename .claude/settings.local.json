@@ -14,7 +14,14 @@
       "WebSearch",
       "Bash(dotnet clean:*)",
       "Read(//d/repos/Furnace/**)",
-      "Read(//d/repos/Mel/**)"
+      "Read(//d/repos/Mel/**)",
+      "Bash(del D:reposWhisperFStestsWhisperFS.TestsWhisperFSRealTests.fs)",
+      "Read(//d/repos/**)",
+      "Bash(del:*)",
+      "Bash(for file in PropertyTests ErrorsTests ConfigurationTests WhisperFSIntegrationTests TypesTests UtilsTests)",
+      "Bash(do echo \"$file:\")",
+      "Bash(grep:*)",
+      "Bash(done)"
     ],
     "deny": [],
     "ask": []

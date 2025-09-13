@@ -19,45 +19,29 @@ module WhisperFS =
                 return Error err
         }
 
-    /// Create a new whisper client
+    /// Create a new whisper client from a model path
+    let createClientFromModel (modelPath: string) (config: WhisperConfig) =
+        async {
+            match! WhisperClientFactory.createFromPath modelPath config with
+            | Ok client -> return Ok client
+            | Error e -> return Error e
+        }
+
+    /// Create a new whisper client with automatic model download
     let createClient (config: WhisperConfig) =
-        let _ = config  // Acknowledge parameter to avoid warning
-        // This would create the actual client combining Native and Runtime
-        // For now, return a placeholder
-        { new IWhisperClient with
-            member _.ProcessAsync(samples) =
-                async { return Error (NotImplemented "ProcessAsync") }
-
-            member _.ProcessStream(audioStream) =
-                audioStream |> Observable.map (fun _ -> Error (NotImplemented "ProcessStream"))
-
-            member _.ProcessFileAsync(path) =
-                async { return Error (NotImplemented "ProcessFileAsync") }
-
-            member _.Process(input) =
-                match input with
-                | BatchAudio _samples -> BatchResult (async { return Error (NotImplemented "BatchAudio") })
-                | StreamingAudio stream -> StreamingResult (stream |> Observable.map (fun _ -> Error (NotImplemented "StreamingAudio")))
-                | AudioFile _path -> BatchResult (async { return Error (NotImplemented "AudioFile") })
-
-            member _.Events =
-                Observable.Empty()
-
-            member _.Reset() =
-                Ok()
-
-            member _.DetectLanguageAsync(samples) =
-                async { return Error (NotImplemented "DetectLanguageAsync") }
-
-            member _.GetMetrics() =
-                {
-                    TotalProcessingTime = TimeSpan.Zero
-                    TotalAudioProcessed = TimeSpan.Zero
-                    AverageRealTimeFactor = 0.0
-                    SegmentsProcessed = 0
-                    TokensGenerated = 0
-                    ErrorCount = 0
-                }
-
-            member _.Dispose() = ()
+        async {
+            // First ensure the native library is initialized
+            let! initResult = initialize()
+            match initResult with
+            | Error e -> return Error e
+            | Ok () ->
+                // Get or download the model
+                let! modelResult = Runtime.Models.downloadModelAsync config.ModelType
+                match modelResult with
+                | Error e -> return Error e
+                | Ok modelPath ->
+                    // Update config with the model path
+                    let configWithPath = { config with ModelPath = modelPath }
+                    // Create the client with the model
+                    return! createClientFromModel modelPath configWithPath
         }
