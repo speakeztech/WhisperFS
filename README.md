@@ -4,7 +4,7 @@ An F# library providing streaming-capable bindings to [whisper.cpp](https://gith
 
 ## Features
 
-- 🎯 **Complete Feature Parity with Whisper.NET** - Drop-in replacement with enhanced capabilities
+- 🎯 **Comparable to Whisper.NET** - Push-to-talk batch support with enhanced streaming capabilities
 - 🚀 **True Streaming Support** - Real-time transcription using whisper.cpp's state management
 - 🔧 **Unified API** - Single `IWhisperClient` interface for both batch and streaming modes
 - 📊 **Token-Level Access** - Confidence scores and timestamps for fine-grained control
