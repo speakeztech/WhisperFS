@@ -10,7 +10,7 @@ An F# library providing streaming-capable bindings to [whisper.cpp](https://gith
 - 📊 **Token-Level Access** - Confidence scores and timestamps for fine-grained control
 - 🌍 **Language Detection** - Automatic language identification with confidence scores
 - 💪 **Platform Optimized** - Automatic GPU detection (CUDA, OpenCL, CoreML) with CPU fallback
-- 🦀 **F# Idiomatic** - Leverages discriminated unions, async workflows, and observables
+- 🔷 **F# Idiomatic** - Leverages discriminated unions, async workflows, and observables
 - ⚡ **Zero-Copy Operations** - Efficient memory management for audio buffers
 - 🔄 **Robust Error Handling** - Result types with comprehensive error discrimination
 
