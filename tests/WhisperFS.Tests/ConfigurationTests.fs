@@ -22,7 +22,8 @@ let ``Default configuration has valid values`` () =
 [<InlineData(8)>]
 let ``Thread count validation accepts valid values`` (threadCount: int) =
     let config = { WhisperConfig.defaultConfig with ThreadCount = threadCount }
-    threadCount |> should be (greaterThan 0)
+    config.ThreadCount |> should equal threadCount
+    config.ThreadCount |> should be (greaterThan 0)
 
 [<Theory>]
 [<InlineData(1024)>]
@@ -30,7 +31,8 @@ let ``Thread count validation accepts valid values`` (threadCount: int) =
 [<InlineData(16384)>]
 let ``Max text context validation accepts valid values`` (maxContext: int) =
     let config = { WhisperConfig.defaultConfig with MaxTextContext = maxContext }
-    maxContext |> should be (greaterThan 0)
+    config.MaxTextContext |> should equal maxContext
+    config.MaxTextContext |> should be (greaterThan 0)
 
 [<Theory>]
 [<InlineData(0.0f)>]
@@ -38,8 +40,9 @@ let ``Max text context validation accepts valid values`` (maxContext: int) =
 [<InlineData(1.0f)>]
 let ``Temperature validation accepts valid range`` (temperature: float32) =
     let config = { WhisperConfig.defaultConfig with Temperature = temperature }
-    temperature |> should be (greaterThanOrEqualTo 0.0f)
-    temperature |> should be (lessThanOrEqualTo 1.0f)
+    config.Temperature |> should equal temperature
+    config.Temperature |> should be (greaterThanOrEqualTo 0.0f)
+    config.Temperature |> should be (lessThanOrEqualTo 1.0f)
 
 [<Fact>]
 let ``Configuration with custom model path`` () =

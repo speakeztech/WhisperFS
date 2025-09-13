@@ -171,3 +171,4 @@ module ResourceTests =
         // And: Should be subscribable (basic check)
         use subscription = events.Subscribe(fun _ -> ())
         subscription |> should not' (be null)
+

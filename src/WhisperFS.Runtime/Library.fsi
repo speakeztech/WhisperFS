@@ -33,3 +33,21 @@ module Models =
 
     /// Download model with cancellation support
     val downloadModelWithCancellationAsync: modelType:ModelType -> CancellationToken -> Async<Result<string, WhisperError>>
+
+    /// Delete a downloaded model
+    val deleteModel: modelType:ModelType -> Result<unit, WhisperError>
+
+    /// Subscribe to model management events
+    val subscribeToModelEvents: handler:(ModelEvent -> unit) -> IDisposable
+
+    /// Get total size of all downloaded models in bytes
+    val getTotalDownloadedSize: unit -> int64
+
+    /// Get available disk space in bytes
+    val getAvailableDiskSpace: unit -> int64
+
+    /// Get recommended model based on system capabilities
+    val getRecommendedModel: unit -> ModelType
+
+    /// Get formatted status string for UI display
+    val getModelStatusString: modelType:ModelType -> string

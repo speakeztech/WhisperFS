@@ -6,13 +6,13 @@ open WhisperFS.Native
 
 /// Minimal streaming placeholder - provides the required types without complex reactive functionality
 /// This ensures the build succeeds while maintaining the API surface for future enhancement
-type WhisperStream(ctx: IntPtr, state: IntPtr, config: WhisperConfig) =
+type WhisperStream(_ctx: IntPtr, _state: IntPtr, _config: WhisperConfig) =
     let mutable isDisposed = false
 
     // Streaming configuration
     member val MinConfidence = 0.5f with get, set
 
-    member _.ProcessAudio(samples: float32[]) =
+    member _.ProcessAudio(_samples: float32[]) =
         // Placeholder - in a real implementation this would buffer and process audio
         ()
 

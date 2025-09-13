@@ -12,7 +12,9 @@
       "Bash(del Mocks.fs Program.fs)",
       "Bash(find:*)",
       "WebSearch",
-      "Bash(dotnet clean:*)"
+      "Bash(dotnet clean:*)",
+      "Read(//d/repos/Furnace/**)",
+      "Read(//d/repos/Mel/**)"
     ],
     "deny": [],
     "ask": []

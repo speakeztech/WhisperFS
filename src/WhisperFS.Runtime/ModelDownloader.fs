@@ -232,7 +232,6 @@ module ModelDownloader =
                     use fileStream = new FileStream(tempPath, FileMode.Create, FileAccess.Write, FileShare.None, 8192, true)
 
                     let buffer = Array.zeroCreate<byte> (8192)
-                    let mutable bytesRead = 0
                     let mutable totalRead = 0L
                     let startTime = DateTime.UtcNow
                     let mutable lastProgressTime = DateTime.UtcNow

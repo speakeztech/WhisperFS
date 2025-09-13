@@ -21,6 +21,7 @@ module WhisperFS =
 
     /// Create a new whisper client
     let createClient (config: WhisperConfig) =
+        let _ = config  // Acknowledge parameter to avoid warning
         // This would create the actual client combining Native and Runtime
         // For now, return a placeholder
         { new IWhisperClient with
@@ -35,9 +36,9 @@ module WhisperFS =
 
             member _.Process(input) =
                 match input with
-                | BatchAudio samples -> BatchResult (async { return Error (NotImplemented "BatchAudio") })
+                | BatchAudio _samples -> BatchResult (async { return Error (NotImplemented "BatchAudio") })
                 | StreamingAudio stream -> StreamingResult (stream |> Observable.map (fun _ -> Error (NotImplemented "StreamingAudio")))
-                | AudioFile path -> BatchResult (async { return Error (NotImplemented "AudioFile") })
+                | AudioFile _path -> BatchResult (async { return Error (NotImplemented "AudioFile") })
 
             member _.Events =
                 Observable.Empty()

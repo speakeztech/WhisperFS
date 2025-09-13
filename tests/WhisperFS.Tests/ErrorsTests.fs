@@ -102,7 +102,7 @@ let ``Configuration validation detects invalid values`` () =
 
 [<Fact>]
 let ``Error types have distinct values`` () =
-    let errors = [
+    let _errors = [
         OutOfMemory
         Cancelled
         ModelLoadError "test"

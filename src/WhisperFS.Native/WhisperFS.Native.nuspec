@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="utf-8"?>
+<package xmlns="http://schemas.microsoft.com/packaging/2013/05/nuspec.xsd">
+  <metadata>
+    <id>WhisperFS.Native</id>
+    <version>$PackageVersion$</version>
+    <title>WhisperFS Native Runtime Loader</title>
+    <authors>$Authors$</authors>
+    <owners>$Owners$</owners>
+    <requireLicenseAcceptance>false</requireLicenseAcceptance>
+    <license type="expression">MIT</license>
+    <projectUrl>https://github.com/yourusername/WhisperFS</projectUrl>
+    <description>Native runtime loader for WhisperFS. Automatically downloads and loads the optimal whisper.cpp native library based on system capabilities (CUDA, AVX, BLAS, CoreML).</description>
+    <summary>Dynamic native library loader for whisper.cpp</summary>
+    <releaseNotes>
+      - Automatic runtime selection based on system capabilities
+      - Support for CUDA 11/12, CoreML, BLAS acceleration
+      - Downloads native libraries on first use
+      - No bundled native binaries - lightweight package
+    </releaseNotes>
+    <copyright>Copyright 2024-2025 WhisperFS Contributors</copyright>
+    <tags>F# fsharp Whisper Speech Recognition Native Runtime GPU CUDA</tags>
+    <dependencies>
+      <group targetFramework="net6.0">
+        <dependency id="WhisperFS.Core" version="$PackageVersion$" />
+        <dependency id="FSharp.Core" version="6.0.0" />
+      </group>
+      <group targetFramework="net8.0">
+        <dependency id="WhisperFS.Core" version="$PackageVersion$" />
+        <dependency id="FSharp.Core" version="8.0.100" />
+      </group>
+    </dependencies>
+  </metadata>
+  <files>
+    <!-- F# assembly only - no native libraries -->
+    <file src="bin/Release/net6.0/WhisperFS.Native.dll" target="lib/net6.0" />
+    <file src="bin/Release/net6.0/WhisperFS.Native.xml" target="lib/net6.0" />
+    <file src="bin/Release/net8.0/WhisperFS.Native.dll" target="lib/net8.0" />
+    <file src="bin/Release/net8.0/WhisperFS.Native.xml" target="lib/net8.0" />
+  </files>
+</package>

@@ -1,0 +1,252 @@
+name: Release Pipeline
+
+on:
+  push:
+    tags:
+      - 'v*'  # Only trigger on version tags like v0.1.0
+  workflow_dispatch:
+    inputs:
+      publish_preview:
+        description: 'Publish preview package to NuGet'
+        required: false
+        default: false
+        type: boolean
+
+env:
+  DOTNET_SKIP_FIRST_TIME_EXPERIENCE: 1
+  DOTNET_NOLOGO: true
+  DOTNET_CLI_TELEMETRY_OPTOUT: 1
+
+jobs:
+  build-and-test:
+    name: Build and Test on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+        include:
+          - os: ubuntu-latest
+            runtime: linux-x64
+            whisper-lib: libwhisper.so
+          - os: windows-latest
+            runtime: win-x64
+            whisper-lib: whisper.dll
+          - os: macos-latest
+            runtime: osx-x64
+            whisper-lib: libwhisper.dylib
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0  # Full history for GitVersion
+
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: |
+          6.0.x
+          8.0.x
+
+    - name: Install Linux dependencies
+      if: runner.os == 'Linux'
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y \
+          build-essential \
+          cmake \
+          libopenblas-dev \
+          pkg-config
+
+    - name: Install macOS dependencies
+      if: runner.os == 'macOS'
+      run: |
+        brew install cmake
+        brew install openblas
+        brew install pkg-config
+
+    - name: Cache NuGet packages
+      uses: actions/cache@v3
+      with:
+        path: ~/.nuget/packages
+        key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.fsproj') }}
+        restore-keys: |
+          ${{ runner.os }}-nuget-
+
+    - name: Cache WhisperFS runtime downloads
+      uses: actions/cache@v3
+      with:
+        path: ~/.local/share/WhisperFS
+        key: ${{ runner.os }}-whisperfs-runtime-${{ hashFiles('src/WhisperFS.Native/NativeLoader.fs') }}
+        restore-keys: |
+          ${{ runner.os }}-whisperfs-runtime-
+
+    - name: Set WhisperFS test environment
+      run: |
+        # Tests will use runtime downloads
+        echo "WHISPERFS_TESTMODE=true" >> $GITHUB_ENV
+        echo "WhisperFS will download native libraries at runtime during tests"
+
+    - name: Restore dependencies
+      run: dotnet restore
+
+    - name: Build (Debug)
+      run: dotnet build --configuration Debug --no-restore
+
+    - name: Build (Release)
+      run: dotnet build --configuration Release --no-restore
+
+    - name: Run tests
+      run: |
+        dotnet test --configuration Release --no-build \
+          --logger "trx;LogFileName=${{ matrix.os }}-test-results.trx" \
+          --logger "console;verbosity=detailed" \
+          --collect:"XPlat Code Coverage" \
+          /p:CollectCoverage=true \
+          /p:CoverletOutputFormat=opencover \
+          /p:CoverletOutput=./coverage/
+
+    - name: Upload test results
+      if: always()
+      uses: actions/upload-artifact@v3
+      with:
+        name: test-results-${{ matrix.os }}
+        path: |
+          **/*.trx
+          **/coverage.opencover.xml
+
+    - name: Upload coverage to Codecov
+      if: matrix.os == 'ubuntu-latest'
+      uses: codecov/codecov-action@v3
+      with:
+        files: ./coverage/coverage.opencover.xml
+        flags: unittests
+        name: codecov-umbrella
+        fail_ci_if_error: false
+
+  pack-and-publish:
+    name: Pack and Publish NuGet Packages
+    needs: build-and-test
+    runs-on: ubuntu-latest
+    # Always run in release workflow since it only triggers on tags or manual dispatch
+    if: always() && !cancelled() && !failure()
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: 8.0.x
+
+    - name: Prepare runtime metadata
+      run: |
+        # WhisperFS packages don't bundle native libraries
+        # They download appropriate versions at runtime
+        echo "WhisperFS packages include runtime loader and model downloader"
+        echo "Native libraries downloaded from: https://github.com/ggerganov/whisper.cpp/releases"
+        echo "Models downloaded from: https://huggingface.co/ggerganov/whisper.cpp"
+
+    - name: Restore dependencies
+      run: dotnet restore
+
+    - name: Pack NuGet packages
+      run: |
+        dotnet pack src/WhisperFS.Core/WhisperFS.Core.fsproj \
+          --configuration Release \
+          --no-restore \
+          --output ./artifacts
+
+        dotnet pack src/WhisperFS.Native/WhisperFS.Native.fsproj \
+          --configuration Release \
+          --no-restore \
+          --output ./artifacts
+
+        dotnet pack src/WhisperFS.Runtime/WhisperFS.Runtime.fsproj \
+          --configuration Release \
+          --no-restore \
+          --output ./artifacts
+
+        dotnet pack src/WhisperFS/WhisperFS.fsproj \
+          --configuration Release \
+          --no-restore \
+          --output ./artifacts
+
+    - name: Upload NuGet packages
+      uses: actions/upload-artifact@v3
+      with:
+        name: nuget-packages
+        path: artifacts/*.nupkg
+
+    - name: Upload symbol packages
+      uses: actions/upload-artifact@v3
+      with:
+        name: symbol-packages
+        path: artifacts/*.snupkg
+
+    # Publish to NuGet.org on version tags
+    - name: Publish to NuGet.org
+      if: startsWith(github.ref, 'refs/tags/v')
+      run: |
+        dotnet nuget push "artifacts/*.nupkg" \
+          --source https://api.nuget.org/v3/index.json \
+          --api-key ${{ secrets.NUGET_API_KEY }} \
+          --skip-duplicate
+
+    # Publish preview packages on manual trigger
+    - name: Publish preview to NuGet.org
+      if: github.event_name == 'workflow_dispatch' && github.event.inputs.publish_preview == 'true'
+      run: |
+        dotnet nuget push "artifacts/*preview*.nupkg" \
+          --source https://api.nuget.org/v3/index.json \
+          --api-key ${{ secrets.NUGET_API_KEY }} \
+          --skip-duplicate
+
+  create-release:
+    name: Create GitHub Release
+    needs: [build-and-test, pack-and-publish]
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/v')
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Download artifacts
+      uses: actions/download-artifact@v3
+      with:
+        name: nuget-packages
+        path: ./artifacts
+
+    - name: Create Release
+      uses: softprops/action-gh-release@v1
+      with:
+        draft: false
+        prerelease: ${{ contains(github.ref, 'preview') || contains(github.ref, 'beta') || contains(github.ref, 'alpha') }}
+        files: |
+          ./artifacts/*.nupkg
+          ./artifacts/*.snupkg
+        generate_release_notes: true
+        body: |
+          ## WhisperFS ${{ github.ref_name }}
+
+          ### Installation
+          ```bash
+          dotnet add package WhisperFS --version ${{ github.ref_name }}
+          ```
+
+          ### What's Changed
+          See the auto-generated release notes below.
+
+          ### Platform Support
+          - ✅ Windows (x64, ARM64)
+          - ✅ Linux (x64, ARM64)
+          - ✅ macOS (x64, ARM64/Apple Silicon)
+
+          ### GPU Support
+          - CUDA 11.8+ (Windows, Linux)
+          - CoreML (macOS)
+          - Vulkan (experimental)

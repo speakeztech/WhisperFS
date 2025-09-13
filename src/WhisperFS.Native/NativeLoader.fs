@@ -255,7 +255,8 @@ module NativeLibraryLoader =
                                 // Try next runtime
                                 return! tryLoad rest
                         with ex ->
-                            // Try next runtime
+                            // Log error and try next runtime
+                            printfn $"Failed to load {runtime.Type}: {ex.Message}"
                             return! tryLoad rest
                     | Error _ ->
                         // Try next runtime
