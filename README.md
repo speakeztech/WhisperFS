@@ -203,7 +203,7 @@ let! result = processor.ProcessAsync(audioFile)
 | Language Detection | ❌ | ✅ With confidence scores |
 | Custom Prompts | ❌ | ✅ Context hints for technical terms |
 | Beam Search | ❌ | ✅ Configurable parameters |
-| Error Handling | Exceptions | Result types |
+| Error Handling | ➖ Exceptions | ✅ Result types |
 | Observables | ❌ | ✅ Reactive extensions |
 
 ## Building from Source
