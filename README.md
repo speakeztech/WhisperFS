@@ -9,7 +9,7 @@ A comprehensive F# library providing streaming-capable bindings to [whisper.cpp]
 - 🔧 **Unified API** - Single `IWhisperClient` interface for both batch and streaming modes
 - 📊 **Token-Level Access** - Confidence scores and timestamps for fine-grained control
 - 🌍 **Language Detection** - Automatic language identification with confidence scores
-- 💪 **Platform Optimized** - Automatic runtime selection (CUDA, CoreML, AVX, etc.)
+- 💪 **Platform Optimized** - Automatic GPU detection (CUDA, OpenCL, CoreML) with CPU fallback
 - 🦀 **F# Idiomatic** - Leverages discriminated unions, async workflows, and observables
 - ⚡ **Zero-Copy Operations** - Efficient memory management for audio buffers
 - 🔄 **Robust Error Handling** - Result types with comprehensive error discrimination
@@ -25,9 +25,11 @@ dotnet add package WhisperFS.Runtime
 
 WhisperFS automatically downloads and manages the appropriate native runtime for your platform:
 
-- **Windows**: CUDA 12.0, AVX2, AVX, or NoAVX variants
-- **macOS**: CoreML optimized or CPU variants
-- **Linux**: CUDA, OpenVINO, or CPU variants
+- **Windows**: CUDA, OpenCL, AVX2, AVX, or CPU variants
+- **macOS**: CoreML optimized, OpenCL, or CPU variants
+- **Linux**: CUDA, OpenCL, or CPU variants
+
+For detailed GPU acceleration support including OpenCL for AMD/Intel GPUs, see [Native Libraries Documentation](docs/NATIVE_LIBRARIES.md#gpu-acceleration).
 
 ## Quick Start
 

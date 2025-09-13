@@ -17,6 +17,7 @@ module NativeLibraryLoader =
         | Cuda11           // CUDA 11.8.0
         | Cuda12           // CUDA 12.4.0
         | CoreML           // macOS CoreML (from xcframework)
+        | OpenCL           // OpenCL GPU (AMD, Intel, others)
         | Vulkan           // Vulkan GPU
 
     type Platform =
@@ -91,6 +92,10 @@ module NativeLibraryLoader =
             Some $"{ReleaseBaseUrl}/{WhisperCppVersion}/whisper-cublas-11.8.0-bin-x64.zip"
         | Windows (NativeArchitecture.X64), Cuda12 ->
             Some $"{ReleaseBaseUrl}/{WhisperCppVersion}/whisper-cublas-12.4.0-bin-x64.zip"
+        | Windows (NativeArchitecture.X64), OpenCL ->
+            Some $"{ReleaseBaseUrl}/{WhisperCppVersion}/whisper-clblast-bin-x64.zip"
+        | Linux (NativeArchitecture.X64), OpenCL ->
+            Some $"{ReleaseBaseUrl}/{WhisperCppVersion}/whisper-clblast-bin-linux-x64.tar.gz"
         | MacOS _, CoreML ->
             Some $"{ReleaseBaseUrl}/{WhisperCppVersion}/whisper-v{WhisperCppVersion}-xcframework.zip"
         | _ -> None
@@ -120,6 +125,26 @@ module NativeLibraryLoader =
         Environment.GetEnvironmentVariable("OPENBLAS_PATH") <> null ||
         Environment.GetEnvironmentVariable("MKLROOT") <> null
 
+    /// Check for OpenCL support (AMD, Intel, and other GPUs)
+    let hasOpenCLSupport() =
+        try
+            // Check for OpenCL runtime
+            if RuntimeInformation.IsOSPlatform(OSPlatform.Windows) then
+                // Windows: Check for OpenCL.dll in system directories
+                File.Exists(@"C:\Windows\System32\OpenCL.dll") ||
+                File.Exists(@"C:\Windows\SysWOW64\OpenCL.dll")
+            elif RuntimeInformation.IsOSPlatform(OSPlatform.Linux) then
+                // Linux: Check for libOpenCL.so
+                File.Exists("/usr/lib/x86_64-linux-gnu/libOpenCL.so.1") ||
+                File.Exists("/usr/lib/libOpenCL.so.1") ||
+                File.Exists("/usr/lib64/libOpenCL.so.1")
+            elif RuntimeInformation.IsOSPlatform(OSPlatform.OSX) then
+                // macOS: OpenCL framework is usually present
+                Directory.Exists("/System/Library/Frameworks/OpenCL.framework")
+            else
+                false
+        with _ -> false
+
     /// Check for AVX support
     let hasAvxSupport() =
         try
@@ -133,8 +158,10 @@ module NativeLibraryLoader =
         let libraryName = getLibraryFileName platform
 
         [
-            // Check CUDA support (Windows only for now)
-            if platform = Windows (NativeArchitecture.X64) && hasCudaSupport() then
+            // Priority 1: CUDA for NVIDIA GPUs (Windows/Linux)
+            if (platform = Windows (NativeArchitecture.X64) ||
+                match platform with Linux (NativeArchitecture.X64) -> true | _ -> false) &&
+               hasCudaSupport() then
                 // Prefer CUDA 12 over CUDA 11
                 { Type = Cuda12; Platform = platform; Priority = 1;
                   FileName = libraryName;
@@ -143,13 +170,7 @@ module NativeLibraryLoader =
                   FileName = libraryName;
                   DownloadUrl = getDownloadUrl Cuda11 platform; Available = true }
 
-            // Check BLAS support
-            if hasBlasSupport() then
-                { Type = Blas; Platform = platform; Priority = 3;
-                  FileName = libraryName;
-                  DownloadUrl = getDownloadUrl Blas platform; Available = true }
-
-            // CoreML for macOS
+            // Priority 1: CoreML for macOS
             match platform with
             | MacOS _ ->
                 { Type = CoreML; Platform = platform; Priority = 1;
@@ -157,7 +178,19 @@ module NativeLibraryLoader =
                   DownloadUrl = getDownloadUrl CoreML platform; Available = true }
             | _ -> ()
 
-            // Always include CPU fallback
+            // Priority 3: OpenCL for AMD, Intel, and other GPUs
+            if hasOpenCLSupport() then
+                { Type = OpenCL; Platform = platform; Priority = 3;
+                  FileName = libraryName;
+                  DownloadUrl = getDownloadUrl OpenCL platform; Available = true }
+
+            // Priority 4: BLAS acceleration (CPU)
+            if hasBlasSupport() then
+                { Type = Blas; Platform = platform; Priority = 4;
+                  FileName = libraryName;
+                  DownloadUrl = getDownloadUrl Blas platform; Available = true }
+
+            // Priority 10: Always include CPU fallback
             { Type = Cpu; Platform = platform; Priority = 10;
               FileName = libraryName;
               DownloadUrl = getDownloadUrl Cpu platform; Available = true }

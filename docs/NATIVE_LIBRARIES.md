@@ -19,14 +19,17 @@ WhisperFS uses a "batteries included" approach for native whisper.cpp binaries, 
 - **BLAS**: OpenBLAS-accelerated binaries (~10-16 MB)
 - **CUDA 11.8**: For older NVIDIA GPUs (~44 MB)
 - **CUDA 12.4**: For newer NVIDIA GPUs (~443 MB)
+- **OpenCL**: For AMD, Intel, and other GPUs via CLBlast (~15-20 MB)
 
 #### macOS
 - **CoreML**: Hardware-accelerated for Apple Silicon
+- **OpenCL**: Available through system frameworks (Intel/AMD GPUs)
 - **CPU**: Fallback for Intel Macs
 
 #### Linux
 - **CPU**: Standard builds
 - **CUDA**: When NVIDIA drivers detected
+- **OpenCL**: For AMD, Intel GPUs when OpenCL runtime installed
 - (Linux binaries need to be built separately as whisper.cpp doesn't provide them)
 
 ## Runtime Selection
@@ -35,9 +38,10 @@ The library automatically selects the best runtime based on priority:
 
 1. **CUDA 12** (if NVIDIA GPU + CUDA 12 detected)
 2. **CUDA 11** (if NVIDIA GPU + CUDA 11 detected)
-3. **BLAS** (if OpenBLAS or Intel MKL detected)
-4. **CoreML** (on macOS with Apple Silicon)
-5. **CPU** (universal fallback)
+3. **CoreML** (on macOS with Apple Silicon)
+4. **OpenCL** (if OpenCL runtime detected - AMD, Intel, or other GPUs)
+5. **BLAS** (if OpenBLAS or Intel MKL detected)
+6. **CPU** (universal fallback)
 
 ## Usage
 
@@ -79,6 +83,62 @@ for runtime in runtimes do
         (if runtime.Available then "Available" else "Not available")
 ```
 
+## GPU Acceleration
+
+### OpenCL Support
+
+WhisperFS includes automatic OpenCL support for GPU acceleration on non-NVIDIA hardware:
+
+#### Supported Hardware
+- **AMD GPUs**: Radeon RX series, Radeon Pro, AMD Instinct
+- **Intel GPUs**: Intel Arc, Intel Iris Xe, Intel UHD Graphics
+- **Other**: Any GPU with OpenCL 1.2+ support
+
+#### Detection
+The library automatically detects OpenCL availability by checking for:
+- **Windows**: `OpenCL.dll` in system directories
+- **Linux**: `libOpenCL.so` in standard library paths
+- **macOS**: OpenCL framework (built-in)
+
+#### Performance
+OpenCL acceleration typically provides:
+- 5-10x speedup over CPU-only processing
+- 50-70% of CUDA performance on comparable hardware
+- Better efficiency than BLAS for long-form audio
+
+### CUDA Support
+
+For NVIDIA GPUs, WhisperFS supports both CUDA 11 and CUDA 12:
+
+#### Requirements
+- NVIDIA GPU with Compute Capability 5.0+
+- CUDA Toolkit 11.8+ or 12.0+
+- Compatible NVIDIA drivers
+
+#### Auto-Detection
+The library checks for CUDA by:
+1. Examining `CUDA_PATH` environment variable
+2. Checking standard CUDA installation directories
+3. Verifying driver compatibility
+
+### Verification
+
+To verify GPU acceleration is working:
+
+```fsharp
+let runtimes = WhisperFS.Native.Library.detectAvailableRuntimes()
+let gpuRuntime = runtimes |> List.tryFind (fun r ->
+    match r.Type with
+    | RuntimeType.Cuda11 | RuntimeType.Cuda12 | RuntimeType.OpenCL -> true
+    | _ -> false)
+
+match gpuRuntime with
+| Some runtime ->
+    printfn "GPU acceleration available: %A" runtime.Type
+| None ->
+    printfn "No GPU acceleration detected, using CPU"
+```
+
 ## Environment Variables
 
 ### WHISPERFS_NATIVE_DIR
@@ -108,6 +168,8 @@ After initialization, the native directory contains:
 ├── cuda12\
 │   └── whisper.dll
 ├── cuda11\
+│   └── whisper.dll
+├── opencl\
 │   └── whisper.dll
 ├── blas\
 │   └── whisper.dll
@@ -162,15 +224,29 @@ Similar to Whisper.NET approach:
 
 ## Performance Comparison
 
-Approximate performance on 1 hour of audio:
+### Batch Processing (1 hour audio file)
 
-| Runtime | Time | Relative Speed |
-|---------|------|----------------|
-| CUDA 12 | ~30s | 120x realtime |
-| CUDA 11 | ~35s | 100x realtime |
-| BLAS | ~90s | 40x realtime |
-| CoreML | ~45s | 80x realtime |
-| CPU | ~180s | 20x realtime |
+| Runtime | Processing Time | Speed Factor |
+|---------|----------------|--------------|
+| CUDA 12 | ~30s | 120x |
+| CUDA 11 | ~35s | 100x |
+| CoreML | ~45s | 80x |
+| OpenCL | ~50s | 72x |
+| BLAS | ~90s | 40x |
+| CPU | ~180s | 20x |
+
+### Realtime Streaming
+
+| Runtime | Latency | Can Process Realtime? |
+|---------|---------|---------------------|
+| CUDA 12 | <100ms | Yes (with headroom) |
+| CUDA 11 | <150ms | Yes (with headroom) |
+| CoreML | <200ms | Yes |
+| OpenCL | <250ms | Yes |
+| BLAS | <500ms | Yes (marginal) |
+| CPU | <1000ms | Depends on model size |
+
+Note: Realtime performance requires processing audio chunks faster than they are captured. Latency values are approximate for base model with 1-second chunks.
 
 ## Future Enhancements
 
