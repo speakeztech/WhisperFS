@@ -1,6 +1,6 @@
 # WhisperFS
 
-A comprehensive F# library providing streaming-capable bindings to [whisper.cpp](https://github.com/ggerganov/whisper.cpp), designed from the ground up to support both real-time transcription and batch processing scenarios.
+An F# library providing streaming-capable bindings to [whisper.cpp](https://github.com/ggerganov/whisper.cpp), designed from the ground up to support both real-time transcription and batch processing scenarios.
 
 ## Features
 
@@ -17,8 +17,7 @@ A comprehensive F# library providing streaming-capable bindings to [whisper.cpp]
 ## Installation
 
 ```bash
-dotnet add package WhisperFS.Core
-dotnet add package WhisperFS.Runtime
+dotnet add package WhisperFS
 ```
 
 ### Native Runtime Dependencies
