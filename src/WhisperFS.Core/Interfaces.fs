@@ -3,30 +3,44 @@ namespace WhisperFS
 open System
 open System.IO
 
-/// Unified client interface (combines batch and streaming)
+/// Input types for unified processing
+type WhisperInput =
+    | BatchAudio of samples:float32[]
+    | StreamingAudio of stream:IObservable<float32[]>
+    | AudioFile of path:string
+
+/// Output types for unified processing
+type WhisperOutput =
+    | BatchResult of Async<Result<TranscriptionResult, WhisperError>>
+    | StreamingResult of IObservable<Result<TranscriptionEvent, WhisperError>>
+
+/// Unified client interface with consistent Result types
 type IWhisperClient =
     inherit IDisposable
 
-    /// Process audio based on mode (batch or streaming)
+    /// Process audio samples (batch mode)
     abstract member ProcessAsync: samples:float32[] -> Async<Result<TranscriptionResult, WhisperError>>
 
-    /// Process audio stream (for streaming mode)
-    abstract member ProcessStream: audioStream:IObservable<float32[]> -> IObservable<TranscriptionEvent>
+    /// Process audio stream (streaming mode) - returns observable of results
+    abstract member ProcessStream: audioStream:IObservable<float32[]> -> IObservable<Result<TranscriptionEvent, WhisperError>>
 
     /// Process audio file
     abstract member ProcessFileAsync: path:string -> Async<Result<TranscriptionResult, WhisperError>>
 
-    /// Get/set streaming mode
-    abstract member StreamingMode: bool with get, set
+    /// Process with either batch or streaming based on input type
+    abstract member Process: input:WhisperInput -> WhisperOutput
 
-    /// Observable events (for streaming)
-    abstract member Events: IObservable<TranscriptionEvent>
+    /// Observable events for all transcription updates
+    abstract member Events: IObservable<Result<TranscriptionEvent, WhisperError>>
 
     /// Reset state (for streaming)
-    abstract member Reset: unit -> unit
+    abstract member Reset: unit -> Result<unit, WhisperError>
 
-    /// Detect language
+    /// Detect language from audio samples
     abstract member DetectLanguageAsync: samples:float32[] -> Async<Result<LanguageDetection, WhisperError>>
+
+    /// Get current performance metrics
+    abstract member GetMetrics: unit -> PerformanceMetrics
 
 /// Legacy batch processor interface (for backward compatibility)
 [<Obsolete("Use IWhisperClient for new implementations")>]
@@ -36,10 +50,10 @@ type IWhisperProcessor =
     abstract member ProcessAsync: audioStream:Stream -> IAsyncEnumerable<Segment>
     abstract member ProcessAsync: samples:float32[] -> Async<TranscriptionResult>
 
-/// Model factory (enhanced from WhisperFactory)
+/// Model factory with Result types
 type IWhisperFactory =
     inherit IDisposable
-    abstract member CreateClient: config:WhisperConfig -> IWhisperClient
+    abstract member CreateClient: config:WhisperConfig -> Result<IWhisperClient, WhisperError>
     abstract member FromPath: modelPath:string -> Result<IWhisperFactory, WhisperError>
     abstract member FromBuffer: buffer:byte[] -> Result<IWhisperFactory, WhisperError>
     abstract member GetModelInfo: unit -> ModelInfo
@@ -57,8 +71,8 @@ module ModelManagement =
 /// Audio capture interface
 type IAudioCapture =
     inherit IDisposable
-    abstract member StartCapture: unit -> unit
-    abstract member StopCapture: unit -> unit
+    abstract member StartCapture: unit -> Result<unit, WhisperError>
+    abstract member StopCapture: unit -> Result<unit, WhisperError>
     abstract member AudioFrameAvailable: IObservable<float32[]>
     abstract member SampleRate: int
     abstract member Channels: int
@@ -75,13 +89,13 @@ and VadResult =
     | SpeechEnded of duration:TimeSpan
     | Silence
 
-/// Transcription service interface
+/// Transcription service interface with Result types
 type ITranscriptionService =
     inherit IDisposable
-    abstract member StartRecording: unit -> unit
-    abstract member StopRecording: unit -> unit
+    abstract member StartRecording: unit -> Result<unit, WhisperError>
+    abstract member StopRecording: unit -> Result<unit, WhisperError>
     abstract member GetStatus: unit -> ServiceStatus
-    abstract member OnTranscription: IObservable<TranscriptionEvent>
+    abstract member OnTranscription: IObservable<Result<TranscriptionEvent, WhisperError>>
     abstract member OnStatusChanged: IObservable<ServiceStatus>
 
 and ServiceStatus =

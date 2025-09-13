@@ -7,12 +7,14 @@ open System.Reactive.Subjects
 open FSharp.Control.Reactive
 open WhisperFS.Native
 
-/// Streaming implementation using whisper_state
+/// Streaming implementation using whisper_state with ring buffer
 type WhisperStream(ctx: IntPtr, state: IntPtr, config: WhisperConfig) =
-    let events = new Subject<TranscriptionEvent>()
+    // Use ring buffer instead of unbounded ResizeArray
+    let maxAudioBufferSize = config.ChunkSizeMs * 16 * 60  // Max 60 seconds of audio
+    let audioRingBuffer = RingBuffer<float32>(maxAudioBufferSize)
+    let events = new Subject<Result<TranscriptionEvent, WhisperError>>()
     let mutable previousSegmentCount = 0
     let mutable committedText = ""
-    let pendingAudio = ResizeArray<float32>()
     let mutable isDisposed = false
 
     // Callback handlers for streaming
@@ -28,49 +30,55 @@ type WhisperStream(ctx: IntPtr, state: IntPtr, config: WhisperConfig) =
     // Setup callbacks
     let setupCallbacks() =
         newSegmentCallback <- WhisperNewSegmentCallback(fun ctx state n_new userData ->
-            // Process new segments as they arrive
-            let totalSegments = WhisperNative.whisper_full_n_segments_from_state(state)
+            try
+                // Process new segments as they arrive
+                let totalSegments = WhisperNative.whisper_full_n_segments_from_state(state)
 
-            for i in previousSegmentCount .. totalSegments - 1 do
-                let textPtr = WhisperNative.whisper_full_get_segment_text_from_state(state, i)
-                let text = Marshal.PtrToStringAnsi(textPtr)
-                let t0 = WhisperNative.whisper_full_get_segment_t0_from_state(state, i)
-                let t1 = WhisperNative.whisper_full_get_segment_t1_from_state(state, i)
+                for i in previousSegmentCount .. totalSegments - 1 do
+                    let textPtr = WhisperNative.whisper_full_get_segment_text_from_state(state, i)
+                    let text = Marshal.PtrToStringAnsi(textPtr)
+                    let t0 = WhisperNative.whisper_full_get_segment_t0_from_state(state, i)
+                    let t1 = WhisperNative.whisper_full_get_segment_t1_from_state(state, i)
 
-                // Get tokens with confidence
-                let tokenCount = WhisperNative.whisper_full_n_tokens_from_state(state, i)
-                let tokens = [
-                    for j in 0 .. tokenCount - 1 do
-                        let tokenPtr = WhisperNative.whisper_full_get_token_text_from_state(state, i, j)
-                        let tokenText = Marshal.PtrToStringAnsi(tokenPtr)
-                        let prob = WhisperNative.whisper_full_get_token_p_from_state(state, i, j)
-                        yield {
-                            Text = tokenText
-                            Timestamp = float32 t0 / 1000.0f  // Convert ms to seconds
-                            Probability = prob
-                            IsSpecial = tokenText.StartsWith("<|") && tokenText.EndsWith("|>")
-                        }
-                ]
+                    // Get tokens with confidence
+                    let tokenCount = WhisperNative.whisper_full_n_tokens_from_state(state, i)
+                    let tokens = [
+                        for j in 0 .. tokenCount - 1 do
+                            let tokenPtr = WhisperNative.whisper_full_get_token_text_from_state(state, i, j)
+                            let tokenText = Marshal.PtrToStringAnsi(tokenPtr)
+                            let prob = WhisperNative.whisper_full_get_token_p_from_state(state, i, j)
+                            yield {
+                                Text = tokenText
+                                Timestamp = float32 t0 / 1000.0f  // Convert ms to seconds
+                                Probability = prob
+                                IsSpecial = tokenText.StartsWith("<|") && tokenText.EndsWith("|>")
+                            }
+                    ]
 
-                let segment = {
-                    Text = text
-                    StartTime = float32 t0 / 1000.0f  // Convert ms to seconds
-                    EndTime = float32 t1 / 1000.0f    // Convert ms to seconds
-                    Tokens = tokens
-                }
+                    let segment = {
+                        Text = text
+                        StartTime = float32 t0 / 1000.0f  // Convert ms to seconds
+                        EndTime = float32 t1 / 1000.0f    // Convert ms to seconds
+                        Tokens = tokens
+                    }
 
-                // Calculate confidence
-                let confidence =
-                    tokens
-                    |> List.filter (fun t -> not t.IsSpecial)
-                    |> function
-                        | [] -> 0.0f
-                        | tokens -> tokens |> List.averageBy (fun t -> t.Probability)
+                    // Calculate confidence
+                    let confidence =
+                        tokens
+                        |> List.filter (fun t -> not t.IsSpecial)
+                        |> function
+                            | [] -> 0.0f
+                            | tokens -> tokens |> List.averageBy (fun t -> t.Probability)
 
-                // Emit event
-                events.OnNext(PartialTranscription(text, tokens, confidence))
+                    // Emit event with Result type
+                    events.OnNext(Ok (PartialTranscription(text, tokens, confidence)))
 
-            previousSegmentCount <- totalSegments
+                    // Track tokens for metrics
+                    PerformanceMonitor.recordTokensGenerated (int64 tokenCount)
+
+                previousSegmentCount <- totalSegments
+            with ex ->
+                events.OnNext(Error (ProcessingError(0, ex.Message)))
         )
 
         encoderBeginCallback <- WhisperEncoderBeginCallback(fun ctx state userData ->
@@ -90,15 +98,19 @@ type WhisperStream(ctx: IntPtr, state: IntPtr, config: WhisperConfig) =
 
     do setupCallbacks()
 
-    /// Process chunk incrementally using whisper_state
+    /// Process chunk incrementally using whisper_state and ring buffer
     let processChunkInternal (samples: float32[]) = async {
         try
-            // Append new audio to pending buffer
-            pendingAudio.AddRange(samples)
+            let startTime = DateTime.UtcNow
 
-            // Only process if we have enough audio (e.g., 1 second)
-            if pendingAudio.Count >= config.ChunkSizeMs * 16 then
-                let audioToProcess = pendingAudio.ToArray()
+            // Write to ring buffer (automatically handles overflow)
+            audioRingBuffer.Write(samples)
+            PerformanceMonitor.recordAudioProcessed(int64 samples.Length * 4L)
+
+            // Only process if we have enough audio
+            if audioRingBuffer.Count >= config.ChunkSizeMs * 16 then
+                // Get audio from ring buffer
+                let audioToProcess = audioRingBuffer.ToArray()
 
                 // Prepare parameters for streaming
                 let mutable parameters = WhisperNative.whisper_full_default_params(
@@ -182,8 +194,13 @@ type WhisperStream(ctx: IntPtr, state: IntPtr, config: WhisperConfig) =
                         Marshal.FreeHGlobal(parameters.language)
                     | _ -> ()
 
-                    // Clear processed audio
-                    pendingAudio.Clear()
+                    // Consume processed audio from ring buffer
+                    let processedSamples = min (config.ChunkSizeMs * 16) audioRingBuffer.Count
+                    audioRingBuffer.Consume(processedSamples)
+
+                    // Record processing time
+                    let processingTime = (DateTime.UtcNow - startTime).TotalMilliseconds
+                    PerformanceMonitor.recordProcessingTime(int64 processingTime)
 
                     if result = 0 then
                         // Get latest results from state
@@ -207,11 +224,11 @@ type WhisperStream(ctx: IntPtr, state: IntPtr, config: WhisperConfig) =
                             let fullText = segments |> List.map (fun s -> s.Text) |> String.concat " "
                             committedText <- fullText
 
-                            return FinalTranscription(fullText, [], segments)
+                            return Ok (FinalTranscription(fullText, [], segments))
                         else
-                            return PartialTranscription("", [], 0.0f)
+                            return Ok (PartialTranscription("", [], 0.0f))
                     else
-                        return ProcessingError(sprintf "Whisper processing failed with code %d" result)
+                        return Error (ErrorHandling.mapNativeError result)
 
                 with ex ->
                     // Clean up on error
@@ -221,13 +238,13 @@ type WhisperStream(ctx: IntPtr, state: IntPtr, config: WhisperConfig) =
                     | Some _ when parameters.language <> IntPtr.Zero ->
                         Marshal.FreeHGlobal(parameters.language)
                     | _ -> ()
-                    return ProcessingError(ex.Message)
+                    return Error (ProcessingError(0, ex.Message))
             else
                 // Not enough audio yet, just acknowledge
-                return PartialTranscription("", [], 0.0f)
+                return Ok (PartialTranscription("", [], 0.0f))
 
         with ex ->
-            return ProcessingError(ex.Message)
+            return Error (ProcessingError(0, ex.Message))
     }
 
     /// Process a chunk of audio samples
@@ -236,11 +253,16 @@ type WhisperStream(ctx: IntPtr, state: IntPtr, config: WhisperConfig) =
 
     /// Reset the stream state
     member _.Reset() =
-        WhisperNative.whisper_free_state(state)
-        let newState = WhisperNative.whisper_init_state(ctx)
-        previousSegmentCount <- 0
-        committedText <- ""
-        pendingAudio.Clear()
+        try
+            WhisperNative.whisper_free_state(state)
+            let newState = WhisperNative.whisper_init_state(ctx)
+            previousSegmentCount <- 0
+            committedText <- ""
+            audioRingBuffer.Clear()
+            PerformanceMonitor.reset()
+            Ok ()
+        with ex ->
+            Error (StateError ex.Message)
 
     /// Get events observable
     member _.Events = events.AsObservable()
@@ -248,14 +270,13 @@ type WhisperStream(ctx: IntPtr, state: IntPtr, config: WhisperConfig) =
     /// Get committed text
     member _.CommittedText = committedText
 
+    /// Get performance metrics
+    member _.GetMetrics() = PerformanceMonitor.getMetrics()
+
     /// Process audio stream
     member _.ProcessStream(audioStream: IObservable<float32[]>) =
         audioStream
-        |> Observable.selectAsync (fun samples ->
-            async {
-                let! result = processChunkInternal samples
-                return result
-            })
+        |> Observable.selectAsync processChunkInternal
 
     interface IDisposable with
         member _.Dispose() =
@@ -274,6 +295,7 @@ type WhisperStream(ctx: IntPtr, state: IntPtr, config: WhisperConfig) =
                 // Free native resources
                 WhisperNative.whisper_free_state(state)
 
+// Rest of the module remains the same...
 module StreamProcessing =
     open System
     open System.Reactive.Linq
@@ -291,7 +313,7 @@ module StreamProcessing =
 
         // Filter based on confidence
         |> Observable.choose (function
-            | PartialTranscription(text, _, conf) when conf >= stream.MinConfidence ->
+            | Ok (PartialTranscription(text, _, conf)) when conf >= stream.MinConfidence ->
                 Some text
             | _ -> None)
 
@@ -299,17 +321,17 @@ module StreamProcessing =
         |> Observable.throttle (TimeSpan.FromMilliseconds 200.0)
 
     /// Smart text stabilization
-    let stabilizeText (events: IObservable<TranscriptionEvent>) =
+    let stabilizeText (events: IObservable<Result<TranscriptionEvent, WhisperError>>) =
         events
         |> Observable.scan (fun (lastText, lastConf) event ->
             match event with
-            | PartialTranscription(text, _, conf) ->
+            | Ok (PartialTranscription(text, _, conf)) ->
                 // Only update if more confident or extending
                 if conf > lastConf || text.StartsWith(lastText) then
                     (text, conf)
                 else
                     (lastText, lastConf)
-            | FinalTranscription(text, _, _) ->
+            | Ok (FinalTranscription(text, _, _)) ->
                 (text, 1.0f) // Final is always accepted
             | _ -> (lastText, lastConf)
         ) ("", 0.0f)
