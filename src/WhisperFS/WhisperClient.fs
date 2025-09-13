@@ -129,46 +129,56 @@ type WhisperClient(context: WhisperContext.Context, config: WhisperConfig) =
 
     interface IWhisperClient with
         member _.ProcessAsync(samples) =
-            processWithTiming (fun () ->
-                async {
-                    if disposed then
-                        return Error (StateError "Client is disposed")
-                    else
-                        let parameters = getParameters()
-                        try
-                            // Process audio
-                            let! processResult = WhisperContext.processAudio context parameters samples
+            async {
+                let stopwatch = System.Diagnostics.Stopwatch.StartNew()
 
-                            match processResult with
-                            | Ok () ->
-                                // Get segments
-                                match WhisperContext.getSegments context with
-                                | Ok segments ->
-                                    metrics <-
-                                        { metrics with
-                                            SegmentsProcessed = metrics.SegmentsProcessed + segments.Length
-                                            TotalAudioProcessed = metrics.TotalAudioProcessed + TimeSpan.FromSeconds(float samples.Length / 16000.0) }
+                let! result = processWithTiming (fun () ->
+                    async {
+                        if disposed then
+                            return Error (StateError "Client is disposed")
+                        else
+                            let parameters = getParameters()
+                            try
+                                // Process audio
+                                let! processResult = WhisperContext.processAudio context parameters samples
 
-                                    // Build result
-                                    let result = {
-                                        FullText = segments |> Array.map (fun s -> s.Text) |> String.concat " "
-                                        Segments = segments |> Array.toList
-                                        Duration = TimeSpan.FromSeconds(float samples.Length / 16000.0)
-                                        ProcessingTime = TimeSpan.Zero // Would need to track this
-                                        Timestamp = DateTime.UtcNow
-                                        Language = config.Language
-                                        LanguageConfidence = None
-                                        Tokens = None
-                                    }
+                                match processResult with
+                                | Ok () ->
+                                    // Get segments
+                                    match WhisperContext.getSegments context with
+                                    | Ok segments ->
+                                        metrics <-
+                                            { metrics with
+                                                SegmentsProcessed = metrics.SegmentsProcessed + segments.Length
+                                                TotalAudioProcessed = metrics.TotalAudioProcessed + TimeSpan.FromSeconds(float samples.Length / 16000.0) }
 
-                                    return Ok result
+                                        // Capture processing time
+                                        let processingTime = stopwatch.Elapsed
+
+                                        // Build result
+                                        let result = {
+                                            FullText = segments |> Array.map (fun s -> s.Text) |> String.concat " "
+                                            Segments = segments |> Array.toList
+                                            Duration = TimeSpan.FromSeconds(float samples.Length / 16000.0)
+                                            ProcessingTime = processingTime
+                                            Timestamp = DateTime.UtcNow
+                                            Language = config.Language
+                                            LanguageConfidence = None
+                                            Tokens = Some (segments |> Array.collect (fun s -> s.Tokens |> List.toArray) |> Array.toList)
+                                        }
+
+                                        return Ok result
+                                    | Error e ->
+                                        return Error e
                                 | Error e ->
                                     return Error e
-                            | Error e ->
-                                return Error e
-                        finally
-                            freeLanguagePtr parameters
-                })
+                            finally
+                                freeLanguagePtr parameters
+                    })
+
+                stopwatch.Stop()
+                return result
+            }
 
         member _.ProcessStream(audioStream) =
             audioStream |> Observable.bind (fun samples ->

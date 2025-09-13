@@ -133,10 +133,25 @@ module WhisperContext =
                         let t1 = WhisperNative.whisper_full_get_segment_t1(context.Handle, i)
                         let speakerTurn = WhisperNative.whisper_full_get_segment_speaker_turn_next(context.Handle, i)
 
+                        // Extract tokens for this segment
+                        let tokenCount = WhisperNative.whisper_full_n_tokens(context.Handle, i)
+                        let tokens =
+                            [| for j in 0 .. tokenCount - 1 do
+                                let tokenTextPtr = WhisperNative.whisper_full_get_token_text(context.Handle, i, j)
+                                let tokenText = Marshal.PtrToStringAnsi(tokenTextPtr)
+                                let tokenId = WhisperNative.whisper_full_get_token_id(context.Handle, i, j)
+                                let tokenProb = WhisperNative.whisper_full_get_token_p(context.Handle, i, j)
+
+                                { Text = tokenText
+                                  Timestamp = 0.0f  // Token-level timestamps not available from this API
+                                  Probability = float32 tokenProb
+                                  IsSpecial = tokenId >= 50256 }  // Special tokens typically have high IDs
+                            |] |> Array.toList
+
                         { Text = text
                           StartTime = float32 t0 / 100.0f // Convert from centiseconds
                           EndTime = float32 t1 / 100.0f
-                          Tokens = [] // Would need to extract tokens if needed
+                          Tokens = tokens
                         }
                     |]
                 Ok segments
@@ -158,10 +173,25 @@ module WhisperContext =
                         let t1 = WhisperNative.whisper_full_get_segment_t1_from_state(state.Handle, i)
                         let speakerTurn = WhisperNative.whisper_full_get_segment_speaker_turn_next_from_state(state.Handle, i)
 
+                        // Extract tokens for this segment
+                        let tokenCount = WhisperNative.whisper_full_n_tokens_from_state(state.Handle, i)
+                        let tokens =
+                            [| for j in 0 .. tokenCount - 1 do
+                                let tokenTextPtr = WhisperNative.whisper_full_get_token_text_from_state(state.Handle, i, j)
+                                let tokenText = Marshal.PtrToStringAnsi(tokenTextPtr)
+                                let tokenId = WhisperNative.whisper_full_get_token_id_from_state(state.Handle, i, j)
+                                let tokenProb = WhisperNative.whisper_full_get_token_p_from_state(state.Handle, i, j)
+
+                                { Text = tokenText
+                                  Timestamp = 0.0f  // Token-level timestamps not available from this API
+                                  Probability = float32 tokenProb
+                                  IsSpecial = tokenId >= 50256 }  // Special tokens typically have high IDs
+                            |] |> Array.toList
+
                         { Text = text
                           StartTime = float32 t0 / 100.0f // Convert from centiseconds
                           EndTime = float32 t1 / 100.0f
-                          Tokens = []
+                          Tokens = tokens
                         }
                     |]
                 Ok segments
