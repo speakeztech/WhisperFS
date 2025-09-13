@@ -97,14 +97,7 @@ jobs:
       run: dotnet build --configuration Release --no-restore
 
     - name: Run tests
-      run: |
-        dotnet test --configuration Release --no-build \
-          --logger "trx;LogFileName=${{ matrix.os }}-test-results.trx" \
-          --logger "console;verbosity=detailed" \
-          --collect:"XPlat Code Coverage" \
-          /p:CollectCoverage=true \
-          /p:CoverletOutputFormat=opencover \
-          /p:CoverletOutput=./coverage/
+      run: dotnet test --configuration Release --no-build --logger "trx;LogFileName=${{ matrix.os }}-test-results.trx" --logger "console;verbosity=detailed" --collect:"XPlat Code Coverage" /p:CollectCoverage=true /p:CoverletOutputFormat=opencover /p:CoverletOutput=./coverage/
 
     - name: Upload test results
       if: always()
@@ -155,25 +148,10 @@ jobs:
 
     - name: Pack NuGet packages
       run: |
-        dotnet pack src/WhisperFS.Core/WhisperFS.Core.fsproj \
-          --configuration Release \
-          --no-restore \
-          --output ./artifacts
-
-        dotnet pack src/WhisperFS.Native/WhisperFS.Native.fsproj \
-          --configuration Release \
-          --no-restore \
-          --output ./artifacts
-
-        dotnet pack src/WhisperFS.Runtime/WhisperFS.Runtime.fsproj \
-          --configuration Release \
-          --no-restore \
-          --output ./artifacts
-
-        dotnet pack src/WhisperFS/WhisperFS.fsproj \
-          --configuration Release \
-          --no-restore \
-          --output ./artifacts
+        dotnet pack src/WhisperFS.Core/WhisperFS.Core.fsproj --configuration Release --no-restore --output ./artifacts
+        dotnet pack src/WhisperFS.Native/WhisperFS.Native.fsproj --configuration Release --no-restore --output ./artifacts
+        dotnet pack src/WhisperFS.Runtime/WhisperFS.Runtime.fsproj --configuration Release --no-restore --output ./artifacts
+        dotnet pack src/WhisperFS/WhisperFS.fsproj --configuration Release --no-restore --output ./artifacts
 
     - name: Upload NuGet packages
       uses: actions/upload-artifact@v4
@@ -190,20 +168,12 @@ jobs:
     # Publish to NuGet.org on version tags
     - name: Publish to NuGet.org
       if: startsWith(github.ref, 'refs/tags/v')
-      run: |
-        dotnet nuget push "artifacts/*.nupkg" \
-          --source https://api.nuget.org/v3/index.json \
-          --api-key ${{ secrets.NUGET_API_KEY }} \
-          --skip-duplicate
+      run: dotnet nuget push "artifacts/*.nupkg" --source https://api.nuget.org/v3/index.json --api-key ${{ secrets.NUGET_API_KEY }} --skip-duplicate
 
     # Publish preview packages on manual trigger
     - name: Publish preview to NuGet.org
       if: github.event_name == 'workflow_dispatch' && github.event.inputs.publish_preview == 'true'
-      run: |
-        dotnet nuget push "artifacts/*preview*.nupkg" \
-          --source https://api.nuget.org/v3/index.json \
-          --api-key ${{ secrets.NUGET_API_KEY }} \
-          --skip-duplicate
+      run: dotnet nuget push "artifacts/*preview*.nupkg" --source https://api.nuget.org/v3/index.json --api-key ${{ secrets.NUGET_API_KEY }} --skip-duplicate
 
   create-release:
     name: Create GitHub Release

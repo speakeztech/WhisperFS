@@ -52,10 +52,7 @@ jobs:
       run: dotnet build --configuration Release --no-restore
 
     - name: Run tests
-      run: |
-        dotnet test --configuration Release --no-build \
-          --logger "trx;LogFileName=${{ matrix.os }}-test-results.trx" \
-          --logger "console;verbosity=normal"
+      run: dotnet test --configuration Release --no-build --logger "trx;LogFileName=${{ matrix.os }}-test-results.trx" --logger "console;verbosity=normal"
 
     - name: Upload test results
       if: always()
