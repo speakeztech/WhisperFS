@@ -140,7 +140,7 @@ module ModelUI =
             return Ok path
         | Downloading _ ->
             // Already downloading
-            return Error (WhisperError.ProcessingError(0, "Model is currently downloading"))
+            return Error (ProcessingError(0, "Model is currently downloading"))
     }
 
     /// Format download progress for UI

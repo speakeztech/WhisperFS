@@ -16,15 +16,15 @@
   <ItemGroup>
     <Compile Include="Types.fs" />
     <Compile Include="Errors.fs" />
-    <Compile Include="Config.fs" />
+    <!-- <Compile Include="Config.fs" /> -->
     <Compile Include="Interfaces.fs" />
     <Compile Include="Utils.fs" />
-    <Compile Include="Client.fs" />
-    <Compile Include="Factory.fs" />
-    <Compile Include="Builder.fs" />
-    <Compile Include="Streaming.fs" />
-    <Compile Include="Batch.fs" />
-    <Compile Include="Library.fs" />
+    <!-- <Compile Include="Client.fs" /> -->
+    <!-- <Compile Include="Factory.fs" /> -->
+    <!-- <Compile Include="Builder.fs" /> -->
+    <!-- <Compile Include="Streaming.fs" /> -->
+    <!-- <Compile Include="Batch.fs" /> -->
+    <!-- <Compile Include="Library.fs" /> -->
   </ItemGroup>
 
   <ItemGroup>
@@ -33,8 +33,9 @@
     <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="8.0.0" />
   </ItemGroup>
 
-  <ItemGroup>
+  <!-- Removed to break circular dependency - these implementations should be in a higher-level assembly -->
+  <!-- <ItemGroup>
     <ProjectReference Include="..\WhisperFS.Native\WhisperFS.Native.fsproj" />
-  </ItemGroup>
+  </ItemGroup> -->
 
 </Project>

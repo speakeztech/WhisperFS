@@ -135,48 +135,6 @@ type EventAggregator<'T>() =
             subscribers <- []
         )
 
-/// Performance monitoring
-type PerformanceMetrics = {
-    AudioProcessed: int64
-    TokensGenerated: int64
-    ProcessingTimeMs: int64
-    RealTimeRatio: float
-    MemoryUsedMB: float
-}
+// Performance tracking removed - was only used in commented-out Streaming.fs
+// If needed in future, should use the PerformanceMetrics type from Types.fs
 
-module PerformanceMonitor =
-    let mutable private audioProcessed = 0L
-    let mutable private tokensGenerated = 0L
-    let mutable private processingTime = 0L
-    let private startTime = DateTime.UtcNow
-
-    let recordAudioProcessed bytes =
-        Interlocked.Add(&audioProcessed, bytes) |> ignore
-
-    let recordTokensGenerated tokens =
-        Interlocked.Add(&tokensGenerated, tokens) |> ignore
-
-    let recordProcessingTime ms =
-        Interlocked.Add(&processingTime, ms) |> ignore
-
-    let getMetrics() =
-        let elapsed = DateTime.UtcNow - startTime
-        let audioSeconds = float audioProcessed / 16000.0 / 4.0  // Assuming 16kHz, float32
-        let realTimeRatio =
-            if elapsed.TotalSeconds > 0.0 then
-                audioSeconds / elapsed.TotalSeconds
-            else
-                0.0
-
-        {
-            AudioProcessed = audioProcessed
-            TokensGenerated = tokensGenerated
-            ProcessingTimeMs = processingTime
-            RealTimeRatio = realTimeRatio
-            MemoryUsedMB = float (GC.GetTotalMemory(false)) / 1048576.0
-        }
-
-    let reset() =
-        audioProcessed <- 0L
-        tokensGenerated <- 0L
-        processingTime <- 0L

@@ -70,6 +70,16 @@ type LanguageDetection = {
     Probabilities: Map<string, float32>
 }
 
+/// Performance metrics for monitoring
+type PerformanceMetrics = {
+    TotalProcessingTime: TimeSpan
+    TotalAudioProcessed: TimeSpan
+    AverageRealTimeFactor: float
+    SegmentsProcessed: int
+    TokensGenerated: int
+    ErrorCount: int
+}
+
 /// Streaming transcription events
 type TranscriptionEvent =
     | PartialTranscription of text:string * tokens:Token list * confidence:float32

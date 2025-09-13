@@ -20,11 +20,11 @@ module NativeLibraryLoader =
         | Vulkan           // Vulkan GPU
 
     type Platform =
-        | Windows of arch:Architecture
-        | Linux of arch:Architecture
-        | MacOS of arch:Architecture
+        | Windows of arch:NativeArchitecture
+        | Linux of arch:NativeArchitecture
+        | MacOS of arch:NativeArchitecture
 
-    and Architecture =
+    and NativeArchitecture =
         | X86
         | X64
         | Arm64
@@ -62,10 +62,10 @@ module NativeLibraryLoader =
     let detectPlatform() =
         let arch =
             match RuntimeInformation.ProcessArchitecture with
-            | Architecture.X86 -> X86
-            | Architecture.X64 -> X64
-            | Architecture.Arm | Architecture.Arm64 -> Arm64
-            | _ -> X64 // Default to x64
+            | Architecture.X86 -> NativeArchitecture.X86
+            | Architecture.X64 -> NativeArchitecture.X64
+            | Architecture.Arm | Architecture.Arm64 -> NativeArchitecture.Arm64
+            | _ -> NativeArchitecture.X64 // Default to x64
 
         if RuntimeInformation.IsOSPlatform(OSPlatform.Windows) then
             Windows arch
@@ -74,22 +74,22 @@ module NativeLibraryLoader =
         elif RuntimeInformation.IsOSPlatform(OSPlatform.OSX) then
             MacOS arch
         else
-            Windows X64 // Default
+            Windows NativeArchitecture.X64 // Default
 
     /// Get download URL for a specific runtime
     let getDownloadUrl (runtime: RuntimeType) (platform: Platform) =
         match platform, runtime with
-        | Windows X64, Cpu ->
+        | Windows (NativeArchitecture.X64), Cpu ->
             Some $"{ReleaseBaseUrl}/{WhisperCppVersion}/whisper-bin-x64.zip"
-        | Windows X86, Cpu ->
+        | Windows (NativeArchitecture.X86), Cpu ->
             Some $"{ReleaseBaseUrl}/{WhisperCppVersion}/whisper-bin-Win32.zip"
-        | Windows X64, Blas ->
+        | Windows (NativeArchitecture.X64), Blas ->
             Some $"{ReleaseBaseUrl}/{WhisperCppVersion}/whisper-blas-bin-x64.zip"
-        | Windows X86, Blas ->
+        | Windows (NativeArchitecture.X86), Blas ->
             Some $"{ReleaseBaseUrl}/{WhisperCppVersion}/whisper-blas-bin-Win32.zip"
-        | Windows X64, Cuda11 ->
+        | Windows (NativeArchitecture.X64), Cuda11 ->
             Some $"{ReleaseBaseUrl}/{WhisperCppVersion}/whisper-cublas-11.8.0-bin-x64.zip"
-        | Windows X64, Cuda12 ->
+        | Windows (NativeArchitecture.X64), Cuda12 ->
             Some $"{ReleaseBaseUrl}/{WhisperCppVersion}/whisper-cublas-12.4.0-bin-x64.zip"
         | MacOS _, CoreML ->
             Some $"{ReleaseBaseUrl}/{WhisperCppVersion}/whisper-v{WhisperCppVersion}-xcframework.zip"
@@ -134,7 +134,7 @@ module NativeLibraryLoader =
 
         [
             // Check CUDA support (Windows only for now)
-            if platform = Windows X64 && hasCudaSupport() then
+            if platform = Windows (NativeArchitecture.X64) && hasCudaSupport() then
                 // Prefer CUDA 12 over CUDA 11
                 { Type = Cuda12; Platform = platform; Priority = 1;
                   FileName = libraryName;
@@ -168,7 +168,7 @@ module NativeLibraryLoader =
     let downloadRuntimeAsync (runtime: RuntimeInfo) = async {
         match runtime.DownloadUrl with
         | None ->
-            return Error (WhisperError.NativeLibraryError
+            return Error (NativeLibraryError
                 $"No download URL available for {runtime.Type} on {runtime.Platform}")
         | Some url ->
             try
@@ -216,14 +216,14 @@ module NativeLibraryLoader =
                         if File.Exists(libraryPath) then
                             return Ok libraryPath
                         else
-                            return Error (WhisperError.NativeLibraryError
+                            return Error (NativeLibraryError
                                 $"Failed to extract {runtime.FileName} from download")
                     with ex ->
-                        return Error (WhisperError.NativeLibraryError
+                        return Error (NativeLibraryError
                             $"Failed to extract runtime: {ex.Message}")
 
             with ex ->
-                return Error (WhisperError.NetworkError
+                return Error (NetworkError
                     $"Failed to download runtime from {url}: {ex.Message}")
     }
 
@@ -236,7 +236,7 @@ module NativeLibraryLoader =
             async {
                 match runtimes with
                 | [] ->
-                    return Error (WhisperError.NativeLibraryError
+                    return Error (NativeLibraryError
                         "No compatible runtime found")
                 | runtime::rest ->
                     // Try to download if needed
@@ -246,7 +246,8 @@ module NativeLibraryLoader =
                     | Ok libraryPath ->
                         try
                             // Try to load the library
-                            let loaded = NativeLibrary.TryLoad(libraryPath, &Unchecked.defaultof<IntPtr>)
+                            let mutable handle = IntPtr.Zero
+                            let loaded = NativeLibrary.TryLoad(libraryPath, &handle)
                             if loaded then
                                 printfn $"Loaded WhisperFS native runtime: {runtime.Type} from {libraryPath}"
                                 return Ok runtime
@@ -293,7 +294,7 @@ module NativeLibraryLoader =
     /// Initialize native library (call once at startup)
     let initialize() = async {
         // Set native library resolver
-        NativeLibrary.SetDllImportResolver(typeof<WhisperNative.WhisperFullParams>.Assembly,
+        NativeLibrary.SetDllImportResolver(typeof<WhisperFullParams>.Assembly,
             DllImportResolver(fun libraryName assembly searchPath ->
                 if libraryName = WhisperNative.LibraryName ||
                    libraryName.Contains("whisper") then

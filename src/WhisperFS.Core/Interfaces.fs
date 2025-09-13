@@ -2,6 +2,7 @@ namespace WhisperFS
 
 open System
 open System.IO
+open System.Collections.Generic
 
 /// Input types for unified processing
 type WhisperInput =

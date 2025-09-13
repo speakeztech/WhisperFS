@@ -216,12 +216,7 @@ module WhisperNative =
     [<DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl)>]
     extern int whisper_model_type(IntPtr ctx)
 
-    // Timing
-    [<DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl)>]
-    extern int64 whisper_full_get_segment_t0_from_state(IntPtr state, int i_segment)
-
-    [<DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl)>]
-    extern int64 whisper_full_get_segment_t1_from_state(IntPtr state, int i_segment)
+    // Timing (removed duplicates - already defined above)
 
     // Reset timings
     [<DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl)>]

@@ -90,7 +90,7 @@ module ErrorHandling =
                     match err with
                     | OutOfMemory | ProcessingError _ ->
                         // Retryable errors
-                        do! Async.Sleep delay
+                        do! Async.Sleep (int delay)
                         return! retry (attempt + 1) (delay * 2)
                     | _ ->
                         // Non-retryable errors

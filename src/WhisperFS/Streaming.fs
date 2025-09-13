@@ -5,7 +5,6 @@ open System.Runtime.InteropServices
 open System.Reactive.Linq
 open System.Reactive.Subjects
 open FSharp.Control.Reactive
-open WhisperFS.Native
 
 /// Streaming implementation using whisper_state with ring buffer
 type WhisperStream(ctx: IntPtr, state: IntPtr, config: WhisperConfig) =

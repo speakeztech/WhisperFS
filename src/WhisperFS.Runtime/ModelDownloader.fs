@@ -194,7 +194,7 @@ module ModelDownloader =
 
         match metadata with
         | None ->
-            return Error (WhisperError.ModelLoadError $"Unknown model type: {modelType}")
+            return Error (ModelLoadError $"Unknown model type: {modelType}")
         | Some meta ->
             try
                 // Check if already downloaded
@@ -296,7 +296,7 @@ module ModelDownloader =
                             let error = "Model verification failed: hash mismatch"
                             modelStatus.AddOrUpdate(modelType, Failed error, fun _ _ -> Failed error) |> ignore
                             modelEvents.Trigger(VerificationCompleted(modelType, false))
-                            return Error (WhisperError.ModelLoadError error)
+                            return Error (ModelLoadError error)
                     | None -> ()
 
                     // Move to final location
@@ -311,12 +311,12 @@ module ModelDownloader =
             with
             | :? OperationCanceledException ->
                 modelStatus.AddOrUpdate(modelType, NotDownloaded, fun _ _ -> NotDownloaded) |> ignore
-                return Error WhisperError.Cancelled
+                return Error Cancelled
             | ex ->
                 let error = ex.Message
                 modelStatus.AddOrUpdate(modelType, Failed error, fun _ _ -> Failed error) |> ignore
                 modelEvents.Trigger(DownloadFailed(modelType, error))
-                return Error (WhisperError.NetworkError error)
+                return Error (NetworkError error)
     }
 
     /// Delete a downloaded model
@@ -329,9 +329,9 @@ module ModelDownloader =
                 modelEvents.Trigger(ModelDeleted modelType)
                 Ok ()
             else
-                Error (WhisperError.FileNotFound path)
+                Error (FileNotFound path)
         with ex ->
-            Error (WhisperError.ProcessingError(0, ex.Message))
+            Error (ProcessingError(0, ex.Message))
 
     /// Get total size of downloaded models
     let getTotalDownloadedSize() =
