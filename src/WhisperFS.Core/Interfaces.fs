@@ -3,6 +3,7 @@ namespace WhisperFS
 open System
 open System.IO
 open System.Collections.Generic
+open System.Threading
 
 /// Input types for unified processing
 type WhisperInput =
@@ -22,11 +23,17 @@ type IWhisperClient =
     /// Process audio samples (batch mode)
     abstract member ProcessAsync: samples:float32[] -> Async<Result<TranscriptionResult, WhisperError>>
 
+    /// Process audio samples with cancellation support
+    abstract member ProcessAsyncWithCancellation: samples:float32[] * cancellationToken:CancellationToken -> Async<Result<TranscriptionResult, WhisperError>>
+
     /// Process audio stream (streaming mode) - returns observable of results
     abstract member ProcessStream: audioStream:IObservable<float32[]> -> IObservable<Result<TranscriptionEvent, WhisperError>>
 
     /// Process audio file
     abstract member ProcessFileAsync: path:string -> Async<Result<TranscriptionResult, WhisperError>>
+
+    /// Process audio file with cancellation support
+    abstract member ProcessFileAsyncWithCancellation: path:string * cancellationToken:CancellationToken -> Async<Result<TranscriptionResult, WhisperError>>
 
     /// Process with either batch or streaming based on input type
     abstract member Process: input:WhisperInput -> WhisperOutput

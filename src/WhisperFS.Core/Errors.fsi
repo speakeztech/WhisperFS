@@ -13,6 +13,7 @@ type WhisperError =
     | NetworkError of message:string
     | OutOfMemory
     | Cancelled
+    | OperationCancelled  // Alias for Cancelled for consistency
     | NotImplemented of feature:string
 
     /// Get human-readable error message

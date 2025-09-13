@@ -1,6 +1,7 @@
 namespace WhisperFS
 
 open System
+open System.Threading
 open System.Reactive.Linq
 
 /// Main WhisperFS API entry point
@@ -8,7 +9,6 @@ module WhisperFS =
 
     /// Initialize WhisperFS with default settings
     let initialize() =
-        // Initialize native library
         async {
             let! nativeResult = Native.Library.initializeAsync()
             match nativeResult with
@@ -30,18 +30,30 @@ module WhisperFS =
     /// Create a new whisper client with automatic model download
     let createClient (config: WhisperConfig) =
         async {
-            // First ensure the native library is initialized
             let! initResult = initialize()
             match initResult with
             | Error e -> return Error e
             | Ok () ->
-                // Get or download the model
                 let! modelResult = Runtime.Models.downloadModelAsync config.ModelType
                 match modelResult with
                 | Error e -> return Error e
                 | Ok modelPath ->
-                    // Update config with the model path
                     let configWithPath = { config with ModelPath = modelPath }
-                    // Create the client with the model
                     return! createClientFromModel modelPath configWithPath
         }
+
+    /// Create a whisper client with custom context parameters
+    let createClientWithParams (modelPath: string) (contextParams: WhisperFS.Native.WhisperContextParams) (config: WhisperConfig) =
+        WhisperClientFactory.createWithParams modelPath contextParams config
+
+    /// Download a model if not already present
+    let downloadModel (modelType: ModelType) =
+        Runtime.Models.downloadModelAsync modelType
+
+    /// Check if a model is already downloaded
+    let isModelDownloaded (modelType: ModelType) =
+        Runtime.Models.isModelDownloaded modelType
+
+    /// Get the local path for a model
+    let getModelPath (modelType: ModelType) =
+        Runtime.Models.getModelPath modelType

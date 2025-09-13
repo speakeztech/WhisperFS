@@ -146,6 +146,9 @@ type WhisperConfig = {
     DebugMode: bool            // debug_mode
     AudioContext: int          // audio_ctx
 
+    // Speaker diarization
+    EnableDiarization: bool    // tdrz_enable
+
     // Language and prompting
     InitialPrompt: string option  // initial_prompt
     DetectLanguage: bool          // detect_language
@@ -153,6 +156,14 @@ type WhisperConfig = {
     // Token suppression
     SuppressBlank: bool           // suppress_blank
     SuppressNonSpeech: bool       // suppress_nst
+    SuppressRegex: string option  // suppress_regex
+
+    // Voice Activity Detection
+    EnableVAD: bool               // vad
+    VADModelPath: string option   // vad_model_path
+
+    // Grammar constraints
+    GrammarRules: string option   // Will be converted to grammar rules
 
     // Temperature and penalties
     Temperature: float32          // temperature
@@ -192,10 +203,15 @@ module WhisperConfig =
         MaxTokens = 0
         DebugMode = false
         AudioContext = 0
+        EnableDiarization = false
         InitialPrompt = None
         DetectLanguage = false
         SuppressBlank = true
         SuppressNonSpeech = true
+        SuppressRegex = None
+        EnableVAD = false
+        VADModelPath = None
+        GrammarRules = None
         Temperature = 0.0f
         MaxInitialTs = 1.0f
         LengthPenalty = -1.0f

@@ -20,6 +20,27 @@ type WhisperLogitsFilterCallback =
 type WhisperProgressCallback =
     delegate of ctx:IntPtr * state:IntPtr * progress:int * user_data:IntPtr -> unit
 
+/// Abort callback for cancellation support
+[<UnmanagedFunctionPointer(CallingConvention.Cdecl)>]
+type WhisperAbortCallback =
+    delegate of user_data:IntPtr -> bool  // Returns true to abort
+
+/// Nested struct for greedy parameters
+[<Struct; StructLayout(LayoutKind.Sequential)>]
+type WhisperGreedyParams =
+    val mutable best_of: int
+
+/// Nested struct for beam search parameters
+[<Struct; StructLayout(LayoutKind.Sequential)>]
+type WhisperBeamSearchParams =
+    val mutable beam_size: int
+    val mutable patience: float32
+
+/// VAD parameters structure
+[<Struct; StructLayout(LayoutKind.Sequential)>]
+type WhisperVadParams =
+    val mutable placeholder: int  // Placeholder, actual structure TBD
+
 /// Full parameters structure - must match C struct exactly
 [<Struct; StructLayout(LayoutKind.Sequential)>]
 type WhisperFullParams =
@@ -36,6 +57,8 @@ type WhisperFullParams =
     val mutable print_progress: bool             // Print progress info
     val mutable print_realtime: bool             // Print results from within whisper.cpp
     val mutable print_timestamps: bool           // Print timestamps for each text segment
+
+    // Token-level timestamps
     val mutable token_timestamps: bool           // Enable token-level timestamps
     val mutable thold_pt: float32               // Timestamp token probability threshold
     val mutable thold_ptsum: float32            // Timestamp token sum probability threshold
@@ -43,19 +66,18 @@ type WhisperFullParams =
     val mutable split_on_word: bool             // Split on word rather than token
     val mutable max_tokens: int                  // Max tokens per segment (0=no limit)
 
-    // Temperature sampling parameters
-    val mutable temperature: float32             // Initial temperature
-    val mutable temperature_inc: float32         // Temperature increment for fallbacks
-    val mutable entropy_thold: float32          // Entropy threshold for decoder fallback
-    val mutable logprob_thold: float32          // Log probability threshold for decoder fallback
-    val mutable no_speech_thold: float32        // No-speech probability threshold
+    // Speed-up techniques
+    val mutable debug_mode: bool                 // Enable debug mode
+    val mutable audio_ctx: int                   // Overwrite audio context size
 
-    // Beam search parameters (when strategy = BEAM_SEARCH)
-    val mutable beam_size: int                   // Beam size for beam search
-    val mutable best_of: int                     // Number of best candidates to keep
-    val mutable patience: float32                // Patience for beam search
+    // Tinydiarize
+    val mutable tdrz_enable: bool                // Enable tinydiarize
 
-    // Prompt tokens (must be allocated and tokenized)
+    // Suppression regex
+    val mutable suppress_regex: IntPtr           // Regular expression for token suppression
+
+    // Initial prompt
+    val mutable initial_prompt: IntPtr           // Initial prompt text
     val mutable prompt_tokens: IntPtr            // Pointer to prompt token array
     val mutable prompt_n_tokens: int             // Number of prompt tokens
 
@@ -63,23 +85,48 @@ type WhisperFullParams =
     val mutable language: IntPtr                 // Language hint ("en", "de", etc.)
     val mutable detect_language: bool            // Auto-detect language
 
-    // Suppression
+    // Common decoding parameters
     val mutable suppress_blank: bool             // Suppress blank outputs
-    val mutable suppress_non_speech_tokens: bool // Suppress non-speech tokens
+    val mutable suppress_nst: bool               // Suppress non-speech tokens
 
-    // Initial timestamp
+    val mutable temperature: float32             // Initial temperature
     val mutable max_initial_ts: float32          // Max initial timestamp
     val mutable length_penalty: float32          // Length penalty
+
+    // Fallback parameters
+    val mutable temperature_inc: float32         // Temperature increment for fallbacks
+    val mutable entropy_thold: float32          // Entropy threshold for decoder fallback
+    val mutable logprob_thold: float32          // Log probability threshold for decoder fallback
+    val mutable no_speech_thold: float32        // No-speech probability threshold
+
+    // Greedy parameters (nested struct)
+    val mutable greedy: WhisperGreedyParams
+
+    // Beam search parameters (nested struct)
+    val mutable beam_search: WhisperBeamSearchParams
 
     // Callbacks for streaming
     val mutable new_segment_callback: IntPtr     // Callback for new segments
     val mutable new_segment_callback_user_data: IntPtr
-    val mutable encoder_begin_callback: IntPtr   // Callback before encoding
-    val mutable encoder_begin_callback_user_data: IntPtr
-    val mutable logits_filter_callback: IntPtr   // Callback for filtering logits
-    val mutable logits_filter_callback_user_data: IntPtr
     val mutable progress_callback: IntPtr        // Progress callback
     val mutable progress_callback_user_data: IntPtr
+    val mutable encoder_begin_callback: IntPtr   // Callback before encoding
+    val mutable encoder_begin_callback_user_data: IntPtr
+    val mutable abort_callback: IntPtr           // Abort callback
+    val mutable abort_callback_user_data: IntPtr
+    val mutable logits_filter_callback: IntPtr   // Callback for filtering logits
+    val mutable logits_filter_callback_user_data: IntPtr
+
+    // Grammar rules
+    val mutable grammar_rules: IntPtr            // Grammar rules
+    val mutable n_grammar_rules: UIntPtr         // Number of grammar rules
+    val mutable i_start_rule: UIntPtr            // Start rule index
+    val mutable grammar_penalty: float32         // Grammar penalty
+
+    // VAD parameters
+    val mutable vad: bool                        // Enable VAD
+    val mutable vad_model_path: IntPtr           // Path to VAD model
+    val mutable vad_params: WhisperVadParams     // VAD parameters
 
 /// Token data structure
 [<Struct; StructLayout(LayoutKind.Sequential)>]

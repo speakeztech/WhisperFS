@@ -13,6 +13,7 @@ type WhisperError =
     | NetworkError of message:string
     | OutOfMemory
     | Cancelled
+    | OperationCancelled  // Alias for Cancelled for consistency
     | NotImplemented of feature:string
 
     member this.Message =
@@ -27,7 +28,7 @@ type WhisperError =
         | FileNotFound path -> sprintf "File not found: %s" path
         | NetworkError msg -> sprintf "Network error: %s" msg
         | OutOfMemory -> "Out of memory"
-        | Cancelled -> "Operation cancelled"
+        | Cancelled | OperationCancelled -> "Operation cancelled"
         | NotImplemented feature -> sprintf "Feature not implemented: %s" feature
 
 module Result =

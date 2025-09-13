@@ -21,7 +21,11 @@
       "Bash(for file in PropertyTests ErrorsTests ConfigurationTests WhisperFSIntegrationTests TypesTests UtilsTests)",
       "Bash(do echo \"$file:\")",
       "Bash(grep:*)",
-      "Bash(done)"
+      "Bash(done)",
+      "Bash(xxd:*)",
+      "Bash(powershell:*)",
+      "Bash(echo \"CUDA_PATH: $env:CUDA_PATH\")",
+      "Bash(./whisper-cli.exe:*)"
     ],
     "deny": [],
     "ask": []

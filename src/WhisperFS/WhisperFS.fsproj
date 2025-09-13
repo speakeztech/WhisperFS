@@ -13,6 +13,8 @@
   <ItemGroup>
     <!-- Implementation files that depend on Core, Native, and Runtime -->
     <Compile Include="Streaming.fs" />
+    <Compile Include="VoiceActivityDetection.fs" />
+    <Compile Include="GrammarRules.fs" />
     <Compile Include="WhisperClient.fs" />
     <Compile Include="Library.fsi" />
     <Compile Include="Library.fs" />

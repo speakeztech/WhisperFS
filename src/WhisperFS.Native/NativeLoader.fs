@@ -132,12 +132,18 @@ module NativeLibraryLoader =
     let hasCudaSupport() =
         try
             match Environment.GetEnvironmentVariable("CUDA_PATH") with
-            | null | "" -> false
-            | _ ->
-                // Check for CUDA 12 first, then 11
-                let cuda12Path = @"C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v12.4\bin"
-                let cuda11Path = @"C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v11.8\bin"
-                Directory.Exists(cuda12Path) || Directory.Exists(cuda11Path)
+            | null | "" ->
+                // Fallback: Check common CUDA installation paths
+                let cudaBasePath = @"C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA"
+                if Directory.Exists(cudaBasePath) then
+                    // Check if any CUDA version is installed
+                    Directory.GetDirectories(cudaBasePath, "v*") |> Array.length > 0
+                else
+                    false
+            | cudaPath ->
+                // CUDA_PATH is set, verify the bin directory exists
+                let binPath = Path.Combine(cudaPath, "bin")
+                Directory.Exists(binPath)
         with _ -> false
 
     /// Check if BLAS is available
@@ -184,37 +190,37 @@ module NativeLibraryLoader =
                 match platform with Linux (NativeArchitecture.X64) -> true | _ -> false) &&
                hasCudaSupport() then
                 // Prefer CUDA 12 over CUDA 11
-                { Type = Cuda12; Platform = platform; Priority = 1;
-                  FileName = libraryName;
-                  DownloadUrl = getDownloadUrl Cuda12 platform; Available = true }
-                { Type = Cuda11; Platform = platform; Priority = 2;
-                  FileName = libraryName;
-                  DownloadUrl = getDownloadUrl Cuda11 platform; Available = true }
+                yield { Type = Cuda12; Platform = platform; Priority = 1;
+                        FileName = libraryName;
+                        DownloadUrl = getDownloadUrl Cuda12 platform; Available = true }
+                yield { Type = Cuda11; Platform = platform; Priority = 2;
+                        FileName = libraryName;
+                        DownloadUrl = getDownloadUrl Cuda11 platform; Available = true }
 
             // Priority 1: CoreML for macOS
             match platform with
             | MacOS _ ->
-                { Type = CoreML; Platform = platform; Priority = 1;
-                  FileName = libraryName;
-                  DownloadUrl = getDownloadUrl CoreML platform; Available = true }
+                yield { Type = CoreML; Platform = platform; Priority = 1;
+                        FileName = libraryName;
+                        DownloadUrl = getDownloadUrl CoreML platform; Available = true }
             | _ -> ()
 
             // Priority 3: OpenCL for AMD, Intel, and other GPUs
             if hasOpenCLSupport() then
-                { Type = OpenCL; Platform = platform; Priority = 3;
-                  FileName = libraryName;
-                  DownloadUrl = getDownloadUrl OpenCL platform; Available = true }
+                yield { Type = OpenCL; Platform = platform; Priority = 3;
+                        FileName = libraryName;
+                        DownloadUrl = getDownloadUrl OpenCL platform; Available = true }
 
             // Priority 4: BLAS acceleration (CPU)
             if hasBlasSupport() then
-                { Type = Blas; Platform = platform; Priority = 4;
-                  FileName = libraryName;
-                  DownloadUrl = getDownloadUrl Blas platform; Available = true }
+                yield { Type = Blas; Platform = platform; Priority = 4;
+                        FileName = libraryName;
+                        DownloadUrl = getDownloadUrl Blas platform; Available = true }
 
             // Priority 10: Always include CPU fallback
-            { Type = Cpu; Platform = platform; Priority = 10;
-              FileName = libraryName;
-              DownloadUrl = getDownloadUrl Cpu platform; Available = true }
+            yield { Type = Cpu; Platform = platform; Priority = 10;
+                    FileName = libraryName;
+                    DownloadUrl = getDownloadUrl Cpu platform; Available = true }
         ]
         |> List.sortBy (fun r -> r.Priority)
 
@@ -256,6 +262,20 @@ module NativeLibraryLoader =
                     try
                         // Extract the zip
                         ZipFile.ExtractToDirectory(zipPath, downloadDir, true)
+
+                        // Handle CUDA/BLAS releases which have DLLs in Release subfolder
+                        let releaseDir = Path.Combine(downloadDir, "Release")
+                        if Directory.Exists(releaseDir) then
+                            printfn "Found Release directory, moving CUDA/BLAS files..."
+                            // Move all DLLs from Release folder to native folder
+                            for dllFile in Directory.GetFiles(releaseDir, "*.dll") do
+                                let fileName = Path.GetFileName(dllFile)
+                                let targetPath = Path.Combine(downloadDir, fileName)
+                                File.Move(dllFile, targetPath, true)
+                                printfn $"  Moved {fileName}"
+
+                            // Clean up Release directory
+                            try Directory.Delete(releaseDir, true) with _ -> ()
 
                         // Find the whisper.dll in extracted files
                         let extractedDll =
@@ -300,8 +320,29 @@ module NativeLibraryLoader =
                         if NativeLibrary.TryLoad(path, &handle) then
                             printfn $"Successfully loaded native library from: {path}"
                             let platform = detectPlatform()
+
+                            // Detect runtime type based on accompanying DLLs
+                            let dirPath = Path.GetDirectoryName(path)
+                            let runtimeType =
+                                if File.Exists(Path.Combine(dirPath, "ggml-cuda.dll")) then
+                                    // Prefer CUDA 12 if we have CUDA 13+ installed, else CUDA 11
+                                    if hasCudaSupport() then
+                                        match Environment.GetEnvironmentVariable("CUDA_PATH") with
+                                        | cudaPath when cudaPath <> null && cudaPath.Contains("v13") -> Cuda12
+                                        | cudaPath when cudaPath <> null && cudaPath.Contains("v12") -> Cuda12
+                                        | _ -> Cuda11
+                                    else
+                                        Cuda12  // Default to CUDA 12 if ggml-cuda.dll is present
+                                elif File.Exists(Path.Combine(dirPath, "ggml-blas.dll")) then
+                                    Blas
+                                elif File.Exists(Path.Combine(dirPath, "ggml-opencl.dll")) then
+                                    OpenCL
+                                else
+                                    Cpu
+
+                            printfn $"Detected runtime type: {runtimeType}"
                             let runtime = {
-                                Type = Cpu  // Default to CPU runtime for local files
+                                Type = runtimeType
                                 Platform = platform
                                 Priority = 1
                                 FileName = getLibraryFileName platform
@@ -310,7 +351,9 @@ module NativeLibraryLoader =
                             }
                             result <- Some runtime
                         else
-                            printfn $"  Failed to load library from: {path}"
+                            // Try to get more details about why it failed
+                            let lastError = Marshal.GetLastWin32Error()
+                            printfn $"  Failed to load library from: {path} (Win32 error: {lastError})"
                     with ex ->
                         printfn $"  Exception loading from {path}: {ex.Message}"
 
@@ -353,16 +396,23 @@ module NativeLibraryLoader =
 
                         if File.Exists(downloadPath) then
                             printfn $"Found cached download at: {downloadPath}"
+                            let fileInfo = FileInfo(downloadPath)
+                            printfn $"  File size: {fileInfo.Length} bytes"
                             try
                                 let mutable handle = IntPtr.Zero
                                 if NativeLibrary.TryLoad(downloadPath, &handle) then
                                     printfn $"Successfully loaded cached runtime: {runtime.Type}"
                                     return Ok runtime
                                 else
-                                    printfn $"Failed to load cached runtime, trying next..."
+                                    let lastError = Marshal.GetLastWin32Error()
+                                    printfn $"Failed to load cached runtime (Win32 error: {lastError}), trying next..."
+                                    // Delete corrupted file so it can be re-downloaded
+                                    try File.Delete(downloadPath) with _ -> ()
                                     return! tryLoad rest
                             with ex ->
                                 printfn $"Exception loading cached runtime: {ex.Message}"
+                                // Delete corrupted file so it can be re-downloaded
+                                try File.Delete(downloadPath) with _ -> ()
                                 return! tryLoad rest
                         else
                             // Download the runtime

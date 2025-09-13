@@ -8,6 +8,31 @@ open System.Threading
 open WhisperFS.Native
 open FSharp.Control.Reactive
 
+/// Module for managing cancellation callbacks
+module internal CancellationHandler =
+    open System.Collections.Concurrent
+
+    // Store active cancellation tokens with their handles
+    let private activeTokens = ConcurrentDictionary<IntPtr, CancellationToken>()
+    let mutable private nextHandle = 1L
+
+    // The actual callback that will be called from native code
+    let private abortCallback = WhisperAbortCallback(fun userData ->
+        match activeTokens.TryGetValue(userData) with
+        | true, token -> token.IsCancellationRequested
+        | false, _ -> false
+    )
+
+    /// Register a cancellation token and get handle and callback
+    let register (token: CancellationToken) =
+        let handle = IntPtr(Interlocked.Increment(&nextHandle))
+        activeTokens.[handle] <- token
+        (Marshal.GetFunctionPointerForDelegate(abortCallback), handle)
+
+    /// Unregister a cancellation token
+    let unregister (handle: IntPtr) =
+        activeTokens.TryRemove(handle) |> ignore
+
 /// Implementation of IWhisperClient using native whisper.cpp
 type WhisperClient(context: WhisperContext.Context, config: WhisperConfig) =
     let mutable disposed = false
@@ -33,7 +58,7 @@ type WhisperClient(context: WhisperContext.Context, config: WhisperConfig) =
                 Ok s
             | Error e -> Error e
 
-    let getParameters() =
+    let getParameters(cancellationToken: CancellationToken option) =
         // Get the strategy as an integer
         let strategyInt =
             match config.Strategy with
@@ -85,13 +110,13 @@ type WhisperClient(context: WhisperContext.Context, config: WhisperConfig) =
         parameters.max_initial_ts <- config.MaxInitialTs
         parameters.length_penalty <- config.LengthPenalty
 
-        // Beam search parameters if applicable
+        // Strategy-specific parameters (using nested structs)
         match config.Strategy with
         | BeamSearch(beamSize, bestOf) ->
-            parameters.beam_size <- beamSize
-            parameters.best_of <- bestOf
+            parameters.beam_search.beam_size <- beamSize
+            parameters.greedy.best_of <- bestOf
         | _ ->
-            parameters.best_of <- 1
+            parameters.greedy.best_of <- 1
 
         // Language and detection
         parameters.language <- languagePtr
@@ -99,13 +124,72 @@ type WhisperClient(context: WhisperContext.Context, config: WhisperConfig) =
 
         // Suppression
         parameters.suppress_blank <- config.SuppressBlank
-        parameters.suppress_non_speech_tokens <- config.SuppressNonSpeech
+        parameters.suppress_nst <- config.SuppressNonSpeech  // Note: field renamed to suppress_nst in new struct
 
-        parameters
+        // Initialize new fields from config
+        parameters.debug_mode <- config.DebugMode
+        parameters.audio_ctx <- config.AudioContext
+        parameters.tdrz_enable <- config.EnableDiarization
 
-    let freeLanguagePtr (parameters: WhisperFullParams) =
+        // Handle suppress_regex
+        parameters.suppress_regex <-
+            match config.SuppressRegex with
+            | Some regex ->
+                let regexBytes = System.Text.Encoding.UTF8.GetBytes(regex + "\x00")
+                let ptr = Marshal.AllocHGlobal(regexBytes.Length)
+                Marshal.Copy(regexBytes, 0, ptr, regexBytes.Length)
+                ptr
+            | None -> IntPtr.Zero
+
+        // Handle initial_prompt
+        parameters.initial_prompt <-
+            match config.InitialPrompt with
+            | Some prompt ->
+                let promptBytes = System.Text.Encoding.UTF8.GetBytes(prompt + "\x00")
+                let ptr = Marshal.AllocHGlobal(promptBytes.Length)
+                Marshal.Copy(promptBytes, 0, ptr, promptBytes.Length)
+                ptr
+            | None -> IntPtr.Zero
+        // Set up cancellation if token provided
+        let abortHandle =
+            match cancellationToken with
+            | Some token ->
+                let (callbackPtr, handle) = CancellationHandler.register token
+                parameters.abort_callback <- callbackPtr
+                parameters.abort_callback_user_data <- handle
+                Some handle
+            | None ->
+                parameters.abort_callback <- IntPtr.Zero
+                parameters.abort_callback_user_data <- IntPtr.Zero
+                None
+        parameters.grammar_rules <- IntPtr.Zero
+        parameters.n_grammar_rules <- UIntPtr.Zero
+        parameters.i_start_rule <- UIntPtr.Zero
+        parameters.grammar_penalty <- 0.0f
+
+        // VAD configuration
+        parameters.vad <- config.EnableVAD
+        parameters.vad_model_path <-
+            match config.VADModelPath with
+            | Some path ->
+                let pathBytes = System.Text.Encoding.UTF8.GetBytes(path + "\x00")
+                let ptr = Marshal.AllocHGlobal(pathBytes.Length)
+                Marshal.Copy(pathBytes, 0, ptr, pathBytes.Length)
+                ptr
+            | None -> IntPtr.Zero
+        // vad_params is a struct, already zero-initialized
+
+        (parameters, abortHandle)
+
+    let freeAllocatedParams (parameters: WhisperFullParams) =
         if parameters.language <> IntPtr.Zero then
             Marshal.FreeHGlobal(parameters.language)
+        if parameters.suppress_regex <> IntPtr.Zero then
+            Marshal.FreeHGlobal(parameters.suppress_regex)
+        if parameters.initial_prompt <> IntPtr.Zero then
+            Marshal.FreeHGlobal(parameters.initial_prompt)
+        if parameters.vad_model_path <> IntPtr.Zero then
+            Marshal.FreeHGlobal(parameters.vad_model_path)
 
     let processWithTiming (processFunc: unit -> Async<Result<TranscriptionResult, WhisperError>>) =
         async {
@@ -137,7 +221,7 @@ type WhisperClient(context: WhisperContext.Context, config: WhisperConfig) =
                         if disposed then
                             return Error (StateError "Client is disposed")
                         else
-                            let parameters = getParameters()
+                            let (parameters, abortHandle) = getParameters(None)
                             try
                                 // Process audio
                                 let! processResult = WhisperContext.processAudio context parameters samples
@@ -173,7 +257,66 @@ type WhisperClient(context: WhisperContext.Context, config: WhisperConfig) =
                                 | Error e ->
                                     return Error e
                             finally
-                                freeLanguagePtr parameters
+                                freeAllocatedParams parameters
+                                match abortHandle with
+                                | Some handle -> CancellationHandler.unregister handle
+                                | None -> ()
+                    })
+
+                stopwatch.Stop()
+                return result
+            }
+
+        member _.ProcessAsyncWithCancellation(samples, cancellationToken) =
+            async {
+                let stopwatch = System.Diagnostics.Stopwatch.StartNew()
+
+                let! result = processWithTiming (fun () ->
+                    async {
+                        if disposed then
+                            return Error (StateError "Client is disposed")
+                        else
+                            let (parameters, abortHandle) = getParameters(Some cancellationToken)
+                            try
+                                // Process audio
+                                let! processResult = WhisperContext.processAudio context parameters samples
+
+                                match processResult with
+                                | Ok () ->
+                                    // Get segments
+                                    match WhisperContext.getSegments context with
+                                    | Ok segments ->
+                                        let processingTime = stopwatch.Elapsed
+                                        let audioLength = TimeSpan.FromSeconds(float samples.Length / 16000.0)
+                                        metrics <- { metrics with
+                                                        TotalAudioProcessed = metrics.TotalAudioProcessed + audioLength
+                                                        SegmentsProcessed = metrics.SegmentsProcessed + segments.Length }
+
+                                        let fullText = segments |> Array.map (fun s -> s.Text) |> String.concat " "
+                                        let tokens =
+                                            segments
+                                            |> Array.collect (fun s -> s.Tokens |> List.toArray)
+                                            |> Array.toList
+
+                                        return Ok {
+                                            FullText = fullText
+                                            Segments = segments |> Array.toList
+                                            Duration = audioLength
+                                            ProcessingTime = processingTime
+                                            Timestamp = DateTime.UtcNow
+                                            Language = config.Language
+                                            LanguageConfidence = None
+                                            Tokens = if tokens.IsEmpty then None else Some tokens
+                                        }
+                                    | Error e ->
+                                        return Error e
+                                | Error e ->
+                                    return Error e
+                            finally
+                                freeAllocatedParams parameters
+                                match abortHandle with
+                                | Some handle -> CancellationHandler.unregister handle
+                                | None -> ()
                     })
 
                 stopwatch.Stop()
@@ -191,11 +334,12 @@ type WhisperClient(context: WhisperContext.Context, config: WhisperConfig) =
                             | Error e ->
                                 observer.OnNext(Error e)
                             | Ok streamState ->
-                                let mutable parameters = getParameters()
-                                parameters.single_segment <- true // Process incrementally
+                                let (parameters, abortHandle) = getParameters(None)
+                                let mutable streamParams = parameters
+                                streamParams.single_segment <- true // Process incrementally
 
                                 try
-                                    let! processResult = WhisperContext.processAudioWithState streamState parameters samples
+                                    let! processResult = WhisperContext.processAudioWithState streamState streamParams samples
 
                                     match processResult with
                                     | Ok () ->
@@ -209,7 +353,10 @@ type WhisperClient(context: WhisperContext.Context, config: WhisperConfig) =
                                     | Error e ->
                                         observer.OnNext(Error e)
                                 finally
-                                    freeLanguagePtr parameters
+                                    freeAllocatedParams streamParams
+                                    match abortHandle with
+                                    | Some handle -> CancellationHandler.unregister handle
+                                    | None -> ()
                     }
 
                     Async.Start task
@@ -217,6 +364,22 @@ type WhisperClient(context: WhisperContext.Context, config: WhisperConfig) =
                 ))
 
         member _.ProcessFileAsync(path) =
+            async {
+                if disposed then
+                    return Error (StateError "Client is disposed")
+                else if not (File.Exists(path)) then
+                    return Error (FileNotFound path)
+                else
+                    try
+                        // Read audio file and convert to samples
+                        // This would need proper audio file reading/decoding
+                        // For now, return not implemented
+                        return Error (NotImplemented "Audio file reading not yet implemented")
+                    with
+                    | ex -> return Error (NativeLibraryError ex.Message)
+            }
+
+        member _.ProcessFileAsyncWithCancellation(path, cancellationToken) =
             async {
                 if disposed then
                     return Error (StateError "Client is disposed")

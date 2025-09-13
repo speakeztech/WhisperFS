@@ -41,3 +41,28 @@ module StreamingExtensions =
         // Placeholder - return the input stream cast to proper type
         textStream |> Observable.map (fun text ->
             { CurrentText = text; LastUpdateTime = DateTime.Now })
+
+/// Streaming audio processing utilities module
+module Streaming =
+
+    /// Create an audio stream from microphone input (placeholder)
+    let createMicrophoneStream() =
+        Observable.Empty<float32[]>()
+
+    /// Create an audio stream from a file (placeholder)
+    let createFileStream (path: string) (chunkSize: int) =
+        Observable.Empty<float32[]>()
+
+    /// Buffer audio samples for batch processing
+    let bufferSamples (bufferSize: int) (stream: IObservable<float32[]>) =
+        stream.Buffer(bufferSize).Select(fun chunks ->
+            chunks |> Seq.concat |> Array.ofSeq
+        )
+
+    /// Apply VAD to audio stream
+    let applyVAD (detector: IVoiceActivityDetector) (stream: IObservable<float32[]>) =
+        stream.Where(fun samples ->
+            match detector.ProcessFrame(samples) with
+            | VadResult.SpeechStarted | VadResult.SpeechContinuing -> true
+            | _ -> false
+        )
