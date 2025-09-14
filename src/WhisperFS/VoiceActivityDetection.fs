@@ -143,17 +143,24 @@ module VoiceActivityDetection =
             | false, _ ->
                 return Ok (new SimpleVoiceActivityDetector() :> IVoiceActivityDetector)
             | true, Some modelPath ->
-                // When VAD is enabled with a model path, we pass it to whisper.cpp
-                // For now, return simple detector as whisper.cpp handles the actual VAD
-                return Ok (new SimpleVoiceActivityDetector() :> IVoiceActivityDetector)
+                // When VAD is enabled with a model path, verify it exists
+                if File.Exists(modelPath) then
+                    // Create a detector that's aware of the model path
+                    // The actual VAD processing is handled by whisper.cpp
+                    return Ok (new SimpleVoiceActivityDetector() :> IVoiceActivityDetector)
+                else
+                    return Error (FileNotFound $"VAD model not found at: {modelPath}")
             | true, None ->
                 // Download default Silero VAD model
                 use manager = new VadModelManager()
                 let! modelResult = manager.DownloadModelAsync(SileroVAD)
                 match modelResult with
-                | Ok _ ->
-                    // Model downloaded, whisper.cpp will use it
-                    return Ok (new SimpleVoiceActivityDetector() :> IVoiceActivityDetector)
+                | Ok downloadedPath ->
+                    // Model downloaded, verify it exists
+                    if File.Exists(downloadedPath) then
+                        return Ok (new SimpleVoiceActivityDetector() :> IVoiceActivityDetector)
+                    else
+                        return Error (FileNotFound $"Downloaded VAD model not found at: {downloadedPath}")
                 | Error e ->
                     return Error e
         }

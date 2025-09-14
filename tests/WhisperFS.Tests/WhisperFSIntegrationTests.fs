@@ -210,6 +210,6 @@ type FileProcessingTests(fixture: WhisperClientFixture) =
             | Error (FileNotFound _) -> () // Expected
             | Error (NotImplemented _) -> () // Expected if not implemented
             | Ok _ -> failwith "Should not succeed with non-existent file"
-            | Error err -> () // Other errors acceptable in test
+            | Error _ -> () // Other errors acceptable in test
         | None ->
             () // Client not available, skip

@@ -466,7 +466,16 @@ module NativeLibraryLoader =
     let getRuntimePath (runtimeType: RuntimeType) =
         let platform = detectPlatform()
         let rid = getRuntimeIdentifier()
-        let libraryName = getLibraryFileName platform
+
+        // Determine library name based on runtime type
+        let libraryName =
+            match runtimeType, platform with
+            | Cuda11, Windows _ -> "whisper.cuda11.dll"
+            | Cuda12, Windows _ -> "whisper.cuda12.dll"
+            | OpenCL, Windows _ -> "whisper.opencl.dll"
+            | Vulkan, Windows _ -> "whisper.vulkan.dll"
+            | CoreML, MacOS _ -> "whisper.coreml.dylib"
+            | _ -> getLibraryFileName platform  // Default CPU version
 
         // Check standard locations first
         let searchPaths = getNativeLibrarySearchPaths()

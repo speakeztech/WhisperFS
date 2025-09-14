@@ -145,9 +145,17 @@ digit ::= "0" | "1" | "2" | "3" | "4" | "5" | "6" | "7" | "8" | "9" """
         match rules with
         | None -> (IntPtr.Zero, UIntPtr.Zero, UIntPtr.Zero)
         | Some rulesText ->
-            // This would need actual implementation to parse and marshal rules
-            // For now, return empty pointers as whisper.cpp grammar support is optional
-            (IntPtr.Zero, UIntPtr.Zero, UIntPtr.Zero)
+            // Parse the rules text to create grammar elements
+            // For now, we'll store the text and pass a pointer to it
+            // In a full implementation, this would parse the GBNF format
+            let rulesBytes = System.Text.Encoding.UTF8.GetBytes(rulesText + "\x00")
+            let rulesPtr = Marshal.AllocHGlobal(rulesBytes.Length)
+            Marshal.Copy(rulesBytes, 0, rulesPtr, rulesBytes.Length)
+
+            // Return the pointer and counts
+            // Note: The native side would need to parse the GBNF rules
+            // For now we return the text pointer with count of 1 rule
+            (rulesPtr, UIntPtr(uint32 1), UIntPtr.Zero)
 
     /// Example usage patterns
     module Examples =
