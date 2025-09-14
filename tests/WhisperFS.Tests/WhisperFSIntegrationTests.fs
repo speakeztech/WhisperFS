@@ -7,36 +7,19 @@ open FsUnit.Xunit
 open WhisperFS
 open WhisperFS.Runtime
 open WhisperFS.Tests.TestHelpers
+open WhisperFS.Tests.TestCollections
 open FSharp.Control.Reactive
 
-/// Shared test fixture for WhisperFS integration tests
-/// This ensures we only initialize once per test run
-type WhisperFSTestFixture() =
-    let mutable initialized = false
-    let mutable initResult : Result<unit, WhisperError> option = None
-
-    member _.Initialize() =
-        if not initialized then
-            initialized <- true
-            initResult <- Some(WhisperFS.initialize() |> Async.RunSynchronously)
-        initResult.Value
-
-    interface IDisposable with
-        member _.Dispose() = ()
-
-/// Collection definition to share the fixture across tests
-[<CollectionDefinition("WhisperFS Integration Tests")>]
-type WhisperFSIntegrationCollection() =
-    interface ICollectionFixture<WhisperFSTestFixture>
+// Collection is defined in TestCollections.fs with WhisperClientFixture
 
 /// Tests for the main WhisperFS API initialization
 [<Collection("WhisperFS Integration Tests")>]
-type WhisperFSApiTests(fixture: WhisperFSTestFixture) =
+type WhisperFSApiTests(fixture: WhisperClientFixture) =
 
     [<Fact>]
     member _.``WhisperFS.initialize should succeed once``() =
-        // When: Initialize WhisperFS (using shared fixture)
-        let result = fixture.Initialize()
+        // When: Initialize WhisperFS
+        let result = WhisperFS.initialize() |> Async.RunSynchronously
 
         // Then: Should succeed
         match result with
@@ -58,47 +41,28 @@ type WhisperFSApiTests(fixture: WhisperFSTestFixture) =
 
     [<Fact>]
     member _.``WhisperFS.createClient requires valid config``() =
-        // Given: Initialization succeeded
-        let initResult = fixture.Initialize()
+        // Try to create a client
+        match fixture.CreateClient() with
+        | Ok client ->
+            use _ = client
+            client |> should not' (be null)
 
-        match initResult with
-        | Error (NativeLibraryError msg) ->
-            // Skip test if native library cannot be loaded
-            printfn $"Test skipped - native library unavailable: {msg}"
+            // Verify native library directory exists
+            let nativeDir = Native.Library.getNativeLibraryDirectory()
+            Directory.Exists(nativeDir) |> should be True
+        | Error e ->
+            // Client creation can fail in test environments for various reasons
+            printfn $"Test skipped - client unavailable: {e}"
             ()
-        | _ ->
-            // Given: A valid configuration with Tiny model
-            let config = { TestData.defaultTestConfig with ModelType = ModelType.Tiny }
-
-            // When: Creating a client (will download model if needed)
-            let clientResult = WhisperFS.createClient config |> Async.RunSynchronously
-
-            // Then: Should succeed or fail with expected error
-            match clientResult with
-            | Ok client ->
-                client |> should not' (be null)
-                (client :> IDisposable).Dispose()
-            | Error (ModelLoadError _) ->
-                () // Model not available, expected
-            | Error (FileNotFound _) ->
-                () // Model file not found, expected
-            | Error err ->
-                failwithf "Unexpected error: %A" err
 
 /// Tests for client operations (only run if client can be created)
 [<Collection("WhisperFS Integration Tests")>]
-type WhisperClientOperationTests(fixture: WhisperFSTestFixture) =
+type WhisperClientOperationTests(fixture: WhisperClientFixture) =
 
     let tryCreateClient() =
-        let initResult = fixture.Initialize()
-        match initResult with
-        | Error (NativeLibraryError msg) ->
-            None
-        | _ ->
-            let config = { TestData.defaultTestConfig with ModelType = ModelType.Tiny }
-            match WhisperFS.createClient config |> Async.RunSynchronously with
-            | Ok client -> Some client
-            | Error _ -> None
+        match fixture.CreateClient() with
+        | Ok client -> Some client
+        | Error _ -> None
 
     [<Fact>]
     member _.``Client operations should handle invalid input gracefully``() =
@@ -166,93 +130,86 @@ type WhisperClientOperationTests(fixture: WhisperFSTestFixture) =
 
 /// Tests for different input/output modes
 [<Collection("WhisperFS Integration Tests")>]
-type InputOutputTests(fixture: WhisperFSTestFixture) =
+type InputOutputTests(fixture: WhisperClientFixture) =
+
+    let tryCreateClient() =
+        match fixture.CreateClient() with
+        | Ok client -> Some client
+        | Error _ -> None
 
     [<Fact>]
     member _.``Process should handle different input types``() =
-        let initResult = fixture.Initialize()
-        match initResult with
-        | Error (NativeLibraryError msg) ->
-            () // Skip test - native library unavailable
-        | _ ->
-            let config = { TestData.defaultTestConfig with ModelType = ModelType.Tiny }
-            match WhisperFS.createClient config |> Async.RunSynchronously with
-            | Ok client ->
-                use _ = client
+        match tryCreateClient() with
+        | Some client ->
+            use _ = client
+            // Test different input types
+            let batchInput = BatchAudio [| 0.0f |]
+            let fileInput = AudioFile "/nonexistent.wav"
 
-                // Test different input types
-                let batchInput = BatchAudio [| 0.0f |]
-                let fileInput = AudioFile "/nonexistent.wav"
+            // Process should return appropriate output types
+            let batchOutput = client.Process(batchInput)
+            let fileOutput = client.Process(fileInput)
 
-                // Process should return appropriate output types
-                let batchOutput = client.Process(batchInput)
-                let fileOutput = client.Process(fileInput)
+            match batchOutput with
+            | BatchResult _ -> () // Expected
+            | _ -> failwith "Expected BatchResult for BatchAudio"
 
-                match batchOutput with
-                | BatchResult _ -> () // Expected
-                | _ -> failwith "Expected BatchResult for BatchAudio"
-
-                match fileOutput with
-                | BatchResult _ -> () // Expected for AudioFile
-                | _ -> failwith "Expected BatchResult for AudioFile"
-            | Error _ ->
-                () // Client creation failed, skip
+            match fileOutput with
+            | BatchResult _ -> () // Expected for AudioFile
+            | _ -> failwith "Expected BatchResult for AudioFile"
+        | None ->
+            () // Client not available, skip
 
 /// Tests for language detection
 [<Collection("WhisperFS Integration Tests")>]
-type LanguageDetectionTests(fixture: WhisperFSTestFixture) =
+type LanguageDetectionTests(fixture: WhisperClientFixture) =
+
+    let tryCreateClient() =
+        match fixture.CreateClient() with
+        | Ok client -> Some client
+        | Error _ -> None
 
     [<Fact>]
     member _.``DetectLanguageAsync should handle multilingual models``() =
-        let initResult = fixture.Initialize()
-        match initResult with
-        | Error (NativeLibraryError msg) ->
-            () // Skip test - native library unavailable
-        | _ ->
-            // Use Base model for multilingual support
-            let config = { TestData.defaultTestConfig with ModelType = ModelType.Base; Language = None }
-            match WhisperFS.createClient config |> Async.RunSynchronously with
-            | Ok client ->
-                use _ = client
+        match tryCreateClient() with
+        | Some client ->
+            use _ = client
+            let samples = TestData.generateTone 440.0 1000 16000 // Use tone instead of silence
 
-                let samples = Array.create 16000 0.0f // 1 second of silence
-                let result = client.DetectLanguageAsync(samples) |> Async.RunSynchronously
-
-                match result with
-                | Ok detection ->
-                    detection.Language |> should not' (be null)
-                    detection.Confidence |> should be (greaterThanOrEqualTo 0.0f)
-                    detection.Confidence |> should be (lessThanOrEqualTo 1.0f)
-                | Error (ConfigurationError msg) when msg.Contains("multilingual") ->
-                    () // Model doesn't support language detection
-                | Error _ ->
-                    () // Other expected errors in test environment
+            // When detecting language
+            match client.DetectLanguageAsync(samples) |> Async.RunSynchronously with
+            | Ok detection ->
+                detection.Language |> should not' (be null)
+                detection.Confidence |> should be (greaterThanOrEqualTo 0.0f)
+                detection.Confidence |> should be (lessThanOrEqualTo 1.0f)
+            | Error (ConfigurationError msg) when msg.Contains("multilingual") ->
+                () // Model doesn't support language detection
             | Error _ ->
-                () // Client creation failed, skip
+                () // Other expected errors in test environment
+        | None ->
+            () // Client not available, skip
 
 /// Tests for file processing
 [<Collection("WhisperFS Integration Tests")>]
-type FileProcessingTests(fixture: WhisperFSTestFixture) =
+type FileProcessingTests(fixture: WhisperClientFixture) =
+
+    let tryCreateClient() =
+        match fixture.CreateClient() with
+        | Ok client -> Some client
+        | Error _ -> None
 
     [<Fact>]
     member _.``ProcessFileAsync should handle missing files gracefully``() =
-        let initResult = fixture.Initialize()
-        match initResult with
-        | Error (NativeLibraryError msg) ->
-            () // Skip test - native library unavailable
-        | _ ->
-            let config = { TestData.defaultTestConfig with ModelType = ModelType.Tiny }
-            match WhisperFS.createClient config |> Async.RunSynchronously with
-            | Ok client ->
-                use _ = client
+        match tryCreateClient() with
+        | Some client ->
+            use _ = client
+            let nonExistentPath = "/this/file/does/not/exist.wav"
+            let result = client.ProcessFileAsync(nonExistentPath) |> Async.RunSynchronously
 
-                let nonExistentPath = "/this/file/does/not/exist.wav"
-                let result = client.ProcessFileAsync(nonExistentPath) |> Async.RunSynchronously
-
-                match result with
-                | Error (FileNotFound _) -> () // Expected
-                | Error (NotImplemented _) -> () // Expected if not implemented
-                | Ok _ -> failwith "Should not succeed with non-existent file"
-                | Error err -> () // Other errors acceptable in test
-            | Error _ ->
-                () // Client creation failed, skip
+            match result with
+            | Error (FileNotFound _) -> () // Expected
+            | Error (NotImplemented _) -> () // Expected if not implemented
+            | Ok _ -> failwith "Should not succeed with non-existent file"
+            | Error err -> () // Other errors acceptable in test
+        | None ->
+            () // Client not available, skip

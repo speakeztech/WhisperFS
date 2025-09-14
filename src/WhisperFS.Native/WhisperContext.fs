@@ -88,7 +88,10 @@ module WhisperContext =
                 else
                     try
                         let result = WhisperNative.whisper_full(context.Handle, parameters, samples, samples.Length)
-                        if result <> 0 then
+                        if result = 1 || result = -6 then
+                            // whisper.cpp returns 1 for user abort, -6 might be CUDA abort
+                            Error WhisperError.OperationCancelled
+                        elif result <> 0 then
                             Error (WhisperError.ProcessingError(result, "Processing failed"))
                         else
                             Ok ()
@@ -110,7 +113,10 @@ module WhisperContext =
                             parameters,
                             samples,
                             samples.Length)
-                        if result <> 0 then
+                        if result = 1 || result = -6 then
+                            // whisper.cpp returns 1 for user abort, -6 might be CUDA abort
+                            Error WhisperError.OperationCancelled
+                        elif result <> 0 then
                             Error (WhisperError.ProcessingError(result, "Processing failed"))
                         else
                             Ok ()

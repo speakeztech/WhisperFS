@@ -30,6 +30,7 @@
 
   <ItemGroup>
     <!-- Essential test files only -->
+    <Compile Include="AssemblyInfo.fs" />
     <Compile Include="TestHelpers.fs" />
     <Compile Include="TestCollections.fs" />
     <Compile Include="TypesTests.fs" />
@@ -42,5 +43,10 @@
     <Compile Include="VADTests.fs" />
     <Compile Include="GrammarTests.fs" />
     <Compile Include="WhisperFSIntegrationTests.fs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Copy xunit configuration to output directory -->
+    <Content Include="xunit.runner.json" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 </Project>

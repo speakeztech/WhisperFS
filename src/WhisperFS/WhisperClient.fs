@@ -12,22 +12,26 @@ open FSharp.Control.Reactive
 module internal CancellationHandler =
     open System.Collections.Concurrent
 
-    // Store active cancellation tokens with their handles
-    let private activeTokens = ConcurrentDictionary<IntPtr, CancellationToken>()
+    // Store active cancellation tokens with their handles and delegates
+    let private activeTokens = ConcurrentDictionary<IntPtr, CancellationToken * WhisperAbortCallback>()
     let mutable private nextHandle = 1L
-
-    // The actual callback that will be called from native code
-    let private abortCallback = WhisperAbortCallback(fun userData ->
-        match activeTokens.TryGetValue(userData) with
-        | true, token -> token.IsCancellationRequested
-        | false, _ -> false
-    )
 
     /// Register a cancellation token and get handle and callback
     let register (token: CancellationToken) =
         let handle = IntPtr(Interlocked.Increment(&nextHandle))
-        activeTokens.[handle] <- token
-        (Marshal.GetFunctionPointerForDelegate(abortCallback), handle)
+
+        // Create a delegate for this specific token
+        // This needs to be kept alive while the native call is running
+        let callback = WhisperAbortCallback(fun userData ->
+            if userData = handle then
+                token.IsCancellationRequested
+            else
+                false
+        )
+
+        activeTokens.[handle] <- (token, callback)
+        let callbackPtr = Marshal.GetFunctionPointerForDelegate(callback)
+        (callbackPtr, handle)
 
     /// Unregister a cancellation token
     let unregister (handle: IntPtr) =
