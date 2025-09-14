@@ -13,6 +13,7 @@ module NativeLibraryLoader =
         | Cuda11           // CUDA 11.8.0
         | Cuda12           // CUDA 12.4.0
         | CoreML           // macOS CoreML
+        | OpenCL           // OpenCL GPU
         | Vulkan           // Vulkan GPU
 
     /// Platform detection for native library selection

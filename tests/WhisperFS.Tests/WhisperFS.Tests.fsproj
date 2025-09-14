@@ -42,6 +42,7 @@
     <Compile Include="CancellationTests.fs" />
     <Compile Include="VADTests.fs" />
     <Compile Include="GrammarTests.fs" />
+    <Compile Include="FieldMappingTests.fs" />
     <Compile Include="WhisperFSIntegrationTests.fs" />
   </ItemGroup>
 
