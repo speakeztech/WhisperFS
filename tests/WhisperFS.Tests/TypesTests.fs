@@ -45,6 +45,7 @@ let ``Segment properties have correct types`` () =
         StartTime = 0.0f
         EndTime = 1.0f
         Tokens = []
+        SpeakerTurnNext = false
     }
 
     segment.Text |> should not' (be NullOrEmptyString)

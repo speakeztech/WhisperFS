@@ -82,8 +82,8 @@ module TestData =
         LanguageConfidence = Some 0.9f
         Tokens = None
         Segments = [
-            { Text = "Hello"; StartTime = 0.0f; EndTime = 0.5f; Tokens = [] }
-            { Text = " world"; StartTime = 0.5f; EndTime = 2.0f; Tokens = [] }
+            { Text = "Hello"; StartTime = 0.0f; EndTime = 0.5f; Tokens = []; SpeakerTurnNext = false }
+            { Text = " world"; StartTime = 0.5f; EndTime = 2.0f; Tokens = []; SpeakerTurnNext = false }
         ]
     }
 

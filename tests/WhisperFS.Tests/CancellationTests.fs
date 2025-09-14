@@ -4,6 +4,7 @@ open System
 open System.Threading
 open Xunit
 open WhisperFS
+open WhisperFS.Tests.TestHelpers
 
 [<Fact>]
 let ``ProcessAsyncWithCancellation respects cancellation token`` () =
@@ -19,8 +20,8 @@ let ``ProcessAsyncWithCancellation respects cancellation token`` () =
         | Ok client ->
             use _ = client
 
-            // Create audio samples (10 seconds of silence)
-            let samples = Array.create (16000 * 10) 0.0f
+            // Create audio samples with tone (10 seconds to ensure it takes time to process)
+            let samples = TestData.generateTone 440.0 10000 16000 // 10 seconds of 440Hz tone
 
             // Create cancellation token that cancels after 100ms
             use cts = new CancellationTokenSource(100)
@@ -82,10 +83,10 @@ let ``Multiple concurrent cancellations are handled correctly`` () =
         | Ok client ->
             use _ = client
 
-            // Create multiple audio samples
-            let samples1 = Array.create (16000 * 5) 0.0f
-            let samples2 = Array.create (16000 * 5) 0.1f
-            let samples3 = Array.create (16000 * 5) 0.2f
+            // Create multiple audio samples with different tones
+            let samples1 = TestData.generateTone 440.0 5000 16000 // 5 seconds of 440Hz
+            let samples2 = TestData.generateTone 880.0 5000 16000 // 5 seconds of 880Hz
+            let samples3 = TestData.generateTone 660.0 5000 16000 // 5 seconds of 660Hz
 
             // Create independent cancellation tokens
             use cts1 = new CancellationTokenSource(50)
@@ -124,8 +125,8 @@ let ``Cancellation token does not affect non-cancellable operations`` () =
         | Ok client ->
             use _ = client
 
-            // Create short audio sample
-            let samples = Array.create 16000 0.0f // 1 second
+            // Create short audio sample with a tone to avoid silence processing issues
+            let samples = TestData.generateTone 440.0 1000 16000 // 1 second of 440Hz tone
 
             // Act - Process without cancellation token
             let! result = client.ProcessAsync(samples)

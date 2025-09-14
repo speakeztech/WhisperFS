@@ -36,41 +36,58 @@ type WhisperBeamSearchParams =
     val mutable beam_size: int
     val mutable patience: float32
 
-/// VAD parameters structure
+/// VAD parameters structure - must match whisper_vad_params exactly
 [<Struct; StructLayout(LayoutKind.Sequential)>]
 type WhisperVadParams =
-    val mutable placeholder: int  // Placeholder, actual structure TBD
+    val mutable threshold: float32                 // Probability threshold to consider as speech
+    val mutable min_speech_duration_ms: int        // Min duration for a valid speech segment
+    val mutable min_silence_duration_ms: int       // Min silence duration to consider speech as ended
+    val mutable max_speech_duration_s: float32     // Max duration of a speech segment before forcing a new segment
+    val mutable speech_pad_ms: int                 // Padding added before and after speech segments
+    val mutable samples_overlap: float32           // Overlap in seconds when copying audio samples from speech segment
 
 /// Full parameters structure - must match C struct exactly
-[<Struct; StructLayout(LayoutKind.Sequential)>]
+[<Struct; StructLayout(LayoutKind.Sequential, CharSet = CharSet.Ansi)>]
 type WhisperFullParams =
     val mutable strategy: int                    // Sampling strategy (0=GREEDY, 1=BEAM_SEARCH)
     val mutable n_threads: int                   // Number of threads
     val mutable n_max_text_ctx: int             // Max tokens to use from past text as prompt
     val mutable offset_ms: int                   // Start offset in ms
     val mutable duration_ms: int                 // Audio duration to process in ms
+    [<MarshalAs(UnmanagedType.I1)>]
     val mutable translate: bool                  // Translate to English
+    [<MarshalAs(UnmanagedType.I1)>]
     val mutable no_context: bool                 // Do not use past transcription for context
+    [<MarshalAs(UnmanagedType.I1)>]
     val mutable no_timestamps: bool              // Do not generate timestamps
+    [<MarshalAs(UnmanagedType.I1)>]
     val mutable single_segment: bool             // Force single segment output
+    [<MarshalAs(UnmanagedType.I1)>]
     val mutable print_special: bool              // Print special tokens
+    [<MarshalAs(UnmanagedType.I1)>]
     val mutable print_progress: bool             // Print progress info
+    [<MarshalAs(UnmanagedType.I1)>]
     val mutable print_realtime: bool             // Print results from within whisper.cpp
+    [<MarshalAs(UnmanagedType.I1)>]
     val mutable print_timestamps: bool           // Print timestamps for each text segment
 
     // Token-level timestamps
+    [<MarshalAs(UnmanagedType.I1)>]
     val mutable token_timestamps: bool           // Enable token-level timestamps
     val mutable thold_pt: float32               // Timestamp token probability threshold
     val mutable thold_ptsum: float32            // Timestamp token sum probability threshold
     val mutable max_len: int                     // Max segment length in characters
+    [<MarshalAs(UnmanagedType.I1)>]
     val mutable split_on_word: bool             // Split on word rather than token
     val mutable max_tokens: int                  // Max tokens per segment (0=no limit)
 
     // Speed-up techniques
+    [<MarshalAs(UnmanagedType.I1)>]
     val mutable debug_mode: bool                 // Enable debug mode
     val mutable audio_ctx: int                   // Overwrite audio context size
 
     // Tinydiarize
+    [<MarshalAs(UnmanagedType.I1)>]
     val mutable tdrz_enable: bool                // Enable tinydiarize
 
     // Suppression regex
@@ -83,10 +100,13 @@ type WhisperFullParams =
 
     // Language
     val mutable language: IntPtr                 // Language hint ("en", "de", etc.)
+    [<MarshalAs(UnmanagedType.I1)>]
     val mutable detect_language: bool            // Auto-detect language
 
     // Common decoding parameters
+    [<MarshalAs(UnmanagedType.I1)>]
     val mutable suppress_blank: bool             // Suppress blank outputs
+    [<MarshalAs(UnmanagedType.I1)>]
     val mutable suppress_nst: bool               // Suppress non-speech tokens
 
     val mutable temperature: float32             // Initial temperature
@@ -124,6 +144,7 @@ type WhisperFullParams =
     val mutable grammar_penalty: float32         // Grammar penalty
 
     // VAD parameters
+    [<MarshalAs(UnmanagedType.I1)>]
     val mutable vad: bool                        // Enable VAD
     val mutable vad_model_path: IntPtr           // Path to VAD model
     val mutable vad_params: WhisperVadParams     // VAD parameters

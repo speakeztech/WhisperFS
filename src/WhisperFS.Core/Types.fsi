@@ -28,6 +28,7 @@ type Segment = {
     StartTime: float32
     EndTime: float32
     Tokens: Token list
+    SpeakerTurnNext: bool  // Indicates if next segment is a different speaker (for diarization)
 }
 
 /// Complete transcription with metadata for application integration

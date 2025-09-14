@@ -177,7 +177,14 @@ type WhisperClient(context: WhisperContext.Context, config: WhisperConfig) =
                 Marshal.Copy(pathBytes, 0, ptr, pathBytes.Length)
                 ptr
             | None -> IntPtr.Zero
-        // vad_params is a struct, already zero-initialized
+
+        // Initialize VAD params with sensible defaults
+        parameters.vad_params.threshold <- 0.6f
+        parameters.vad_params.min_speech_duration_ms <- 250
+        parameters.vad_params.min_silence_duration_ms <- 2000
+        parameters.vad_params.max_speech_duration_s <- 30.0f
+        parameters.vad_params.speech_pad_ms <- 400
+        parameters.vad_params.samples_overlap <- 0.5f
 
         (parameters, abortHandle)
 
@@ -389,6 +396,8 @@ type WhisperClient(context: WhisperContext.Context, config: WhisperConfig) =
                     try
                         // Read audio file and convert to samples
                         // This would need proper audio file reading/decoding
+                        // TODO: Use cancellationToken when implementing actual file processing
+                        let _ = cancellationToken // Suppress warning - will be used in implementation
                         // For now, return not implemented
                         return Error (NotImplemented "Audio file reading not yet implemented")
                     with

@@ -31,6 +31,7 @@
   <ItemGroup>
     <!-- Essential test files only -->
     <Compile Include="TestHelpers.fs" />
+    <Compile Include="TestCollections.fs" />
     <Compile Include="TypesTests.fs" />
     <Compile Include="ErrorsTests.fs" />
     <Compile Include="ConfigurationTests.fs" />

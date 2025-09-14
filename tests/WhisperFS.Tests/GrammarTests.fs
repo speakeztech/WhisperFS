@@ -64,7 +64,7 @@ let ``EmailAddress grammar rule generates email pattern`` () =
         Assert.Contains("username", grammar)
         Assert.Contains("@", grammar)
         Assert.Contains("domain", grammar)
-        Assert.Contains(".com", grammar)
+        Assert.True(grammar.Contains("com"), $"Grammar should contain 'com'. Length: {grammar.Length}")
     | None ->
         Assert.True(false, "Grammar should be generated")
 

@@ -17,36 +17,36 @@ module ModelDownloader =
     /// Model metadata definitions
     let modelMetadata = [
         { Type = Tiny
-          DisplayName = "Tiny (39 MB)"
+          DisplayName = "Tiny (74 MB)"
           Description = "Fastest, least accurate. Good for quick drafts."
-          Size = 39L * 1024L * 1024L
+          Size = 74L * 1024L * 1024L
           Url = $"{HuggingFaceBaseUrl}/ggml-tiny.bin"
           Sha256 = None
           RequiresGpu = false
           Languages = ["en"; "multilingual"] }
 
         { Type = TinyEn
-          DisplayName = "Tiny English (39 MB)"
+          DisplayName = "Tiny English (74 MB)"
           Description = "Fastest English-only model."
-          Size = 39L * 1024L * 1024L
+          Size = 74L * 1024L * 1024L
           Url = $"{HuggingFaceBaseUrl}/ggml-tiny.en.bin"
           Sha256 = None
           RequiresGpu = false
           Languages = ["en"] }
 
         { Type = Base
-          DisplayName = "Base (142 MB)"
+          DisplayName = "Base (141 MB)"
           Description = "Good balance of speed and accuracy."
-          Size = 142L * 1024L * 1024L
+          Size = 141L * 1024L * 1024L
           Url = $"{HuggingFaceBaseUrl}/ggml-base.bin"
           Sha256 = None
           RequiresGpu = false
           Languages = ["en"; "multilingual"] }
 
         { Type = BaseEn
-          DisplayName = "Base English (142 MB)"
+          DisplayName = "Base English (141 MB)"
           Description = "English-optimized base model."
-          Size = 142L * 1024L * 1024L
+          Size = 141L * 1024L * 1024L
           Url = $"{HuggingFaceBaseUrl}/ggml-base.en.bin"
           Sha256 = None
           RequiresGpu = false

@@ -25,7 +25,13 @@
       "Bash(xxd:*)",
       "Bash(powershell:*)",
       "Bash(echo \"CUDA_PATH: $env:CUDA_PATH\")",
-      "Bash(./whisper-cli.exe:*)"
+      "Bash(./whisper-cli.exe:*)",
+      "Read(//d/**)",
+      "Bash(git checkout:*)",
+      "Read(//c//**)",
+      "Bash(dir:*)",
+      "Bash(cmd /c \"dir C:\\Users\\h3tec\\AppData\\Local\\WhisperFS\\models\\*.bin\")",
+      "Read(//c/Users/h3tec/AppData/Local/WhisperFS/models//**)"
     ],
     "deny": [],
     "ask": []

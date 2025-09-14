@@ -50,6 +50,7 @@ let ``Segment time ranges are valid`` (startTime: float32) (endTime: float32) =
         StartTime = startTime
         EndTime = endTime
         Tokens = []
+        SpeakerTurnNext = false
     }
 
     segment.StartTime |> should be (greaterThanOrEqualTo 0.0f)

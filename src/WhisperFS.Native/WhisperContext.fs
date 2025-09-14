@@ -152,6 +152,7 @@ module WhisperContext =
                           StartTime = float32 t0 / 100.0f // Convert from centiseconds
                           EndTime = float32 t1 / 100.0f
                           Tokens = tokens
+                          SpeakerTurnNext = speakerTurn
                         }
                     |]
                 Ok segments
@@ -192,6 +193,7 @@ module WhisperContext =
                           StartTime = float32 t0 / 100.0f // Convert from centiseconds
                           EndTime = float32 t1 / 100.0f
                           Tokens = tokens
+                          SpeakerTurnNext = speakerTurn
                         }
                     |]
                 Ok segments
